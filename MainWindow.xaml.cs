@@ -19,6 +19,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
 using YoutubeDownloader;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace YoutubeDownloader
 {
@@ -31,14 +32,28 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.0"; // Added QoL improvements
+        private readonly string _currentVersion = "1.1.1"; // Added QoL improvements
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
         private new AppWindow AppWindow { get; set; } = null!;
+        private DateTime _downloadStartTime;
+        private double _lastProgress;
 
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        private string FormatFileSize(double bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB" };
+            int order = 0;
+            while (bytes >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                bytes = bytes / 1024;
+            }
+            return $"{bytes:0.##} {sizes[order]}";
+        }
 
         public MainWindow()
         {
@@ -169,6 +184,8 @@ namespace YoutubeDownloader
             {
                 ClearPreview();
                 _isDownloading = true;
+                _downloadStartTime = DateTime.Now;  // Initialize download start time
+                _lastProgress = 0;  // Reset progress
                 UpdateStatus("Starting download...");
                 DownloadProgress.Value = 0;
 
@@ -206,55 +223,82 @@ namespace YoutubeDownloader
                 {
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        if (p == null) return;
+                        if (p == null)
+                        {
+                            Logger.Log("Progress update received but was null");
+                            return;
+                        }
+
+                        // Log progress details
+                        Logger.Log($"Progress update received: {p.Progress * 100:F1}%");
 
                         // Update progress bar
                         DownloadProgress.Value = p.Progress * 100;
                         
                         // Update speed
-                        double downloadSpeed;
-                        if (double.TryParse(p.DownloadSpeed?.ToString(), out downloadSpeed) && downloadSpeed > 0)
+                        if (p.DownloadSpeed != null)
                         {
-                            if (downloadSpeed >= 1024 * 1024)
+                            string rawSpeed = p.DownloadSpeed.ToString() ?? "";
+                            if (rawSpeed.EndsWith("iB/s"))
                             {
-                                SpeedText.Text = $"{downloadSpeed / (1024.0 * 1024.0):F1} MB/s";
-                            }
-                            else if (downloadSpeed >= 1024)
-                            {
-                                SpeedText.Text = $"{downloadSpeed / 1024.0:F1} KB/s";
-                            }
-                            else
-                            {
-                                SpeedText.Text = $"{downloadSpeed:F0} B/s";
+                                // Parse values like "7.61MiB/s"
+                                string speedText = rawSpeed;
+                                if (rawSpeed.Contains("M"))
+                                {
+                                    double mbSpeed = double.Parse(rawSpeed.Replace("MiB/s", ""));
+                                    speedText = $"{mbSpeed:F2} MB/s";
+                                }
+                                else if (rawSpeed.Contains("K"))
+                                {
+                                    double kbSpeed = double.Parse(rawSpeed.Replace("KiB/s", ""));
+                                    speedText = $"{kbSpeed:F2} KB/s";
+                                }
+                                SpeedText.Text = speedText;
+                                Logger.Log($"Parsed speed: {speedText} from {rawSpeed}");
                             }
                         }
-                        else
-                        {
-                            SpeedText.Text = string.Empty;
-                        }
-                        
+
                         // Update ETA
-                        double eta;
-                        if (double.TryParse(p.ETA?.ToString(), out eta) && eta > 0)
+                        if (p.Progress > _lastProgress)  // Only update if progress increased
                         {
-                            if (eta >= 3600)
+                            var elapsedTime = DateTime.Now - _downloadStartTime;
+                            var remainingProgress = 1.0 - p.Progress;
+                            
+                            if (p.Progress > 0)
                             {
-                                TimeRemainingText.Text = $"{(int)(eta / 3600)}h {(int)((eta % 3600) / 60)}m remaining";
+                                var estimatedTotalTime = TimeSpan.FromSeconds(elapsedTime.TotalSeconds / p.Progress);
+                                var estimatedRemaining = TimeSpan.FromSeconds(estimatedTotalTime.TotalSeconds * remainingProgress);
+
+                                string etaText;
+                                if (estimatedRemaining.TotalHours >= 1)
+                                {
+                                    etaText = $"{(int)estimatedRemaining.TotalHours}h {estimatedRemaining.Minutes}m remaining";
+                                }
+                                else if (estimatedRemaining.TotalMinutes >= 1)
+                                {
+                                    etaText = $"{(int)estimatedRemaining.TotalMinutes}m {estimatedRemaining.Seconds}s remaining";
+                                }
+                                else
+                                {
+                                    etaText = $"{estimatedRemaining.Seconds}s remaining";
+                                }
+                                TimeRemainingText.Text = etaText;
+                                Logger.Log($"Calculated ETA: {etaText} (Progress: {p.Progress:P0}, Elapsed: {elapsedTime.TotalSeconds:F1}s)");
                             }
-                            else if (eta >= 60)
-                            {
-                                TimeRemainingText.Text = $"{(int)(eta / 60)}m {(int)(eta % 60)}s remaining";
-                            }
-                            else
-                            {
-                                TimeRemainingText.Text = $"{(int)eta}s remaining";
-                            }
+                            
+                            _lastProgress = p.Progress;
                         }
-                        else
-                        {
-                            TimeRemainingText.Text = string.Empty;
-                        }
+
+                        // Log all available properties
+                        Logger.Log($"Full progress update:" +
+                                  $"\nProgress: {p.Progress * 100:F1}%" +
+                                  $"\nDownload Speed: {p.DownloadSpeed}" +
+                                  $"\nETA: {p.ETA}" +
+                                  $"\nStatus: {p.State}" +
+                                  $"\nSpeedText value: {SpeedText.Text}" +
+                                  $"\nTimeRemainingText value: {TimeRemainingText.Text}");
                         
+                        // Update status with percentage
                         UpdateStatus($"Downloading: {(p.Progress * 100):F1}%");
                     });
                 });
@@ -341,79 +385,39 @@ namespace YoutubeDownloader
                 }
                 else
                 {
-                    options.Format = "bestaudio/best";
+                    // Set up options for MP3 download
+                    var format = "bestaudio/best";
+                    options.Format = format;
                     options.ExtractAudio = true;
                     options.AudioFormat = AudioConversionFormat.Mp3;
+                    options.AudioQuality = 192;
                     options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
                     options.RestrictFilenames = true;
                     options.NoPlaylist = true;
                     options.PreferFreeFormats = true;
 
-                    // First download as best audio
+                    // Run the download
                     var result = await _youtubeDl.RunVideoDownload(
                         url,
-                        "bestaudio/best",
+                        format,
                         DownloadMergeFormat.Mkv,
-                        progress: progress
+                        progress: progress,
+                        ct: CancellationToken.None,
+                        overrideOptions: options
                     );
 
                     if (result.Success && File.Exists(result.Data))
                     {
                         try
                         {
-                            var mp3Path = Path.Combine(
-                                Path.GetDirectoryName(result.Data)!,
-                                Path.GetFileNameWithoutExtension(result.Data) + ".mp3"
-                            );
-
-                            // Add debug information
-                            System.Diagnostics.Debug.WriteLine($"Original file: {result.Data}");
-                            System.Diagnostics.Debug.WriteLine($"Target MP3 path: {mp3Path}");
-
-                            if (!result.Data.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (File.Exists(mp3Path))
-                                {
-                                    File.Delete(mp3Path);
-                                }
-
-                                // Use FFmpeg directly to convert to MP3
-                                var process = new System.Diagnostics.Process
-                                {
-                                    StartInfo = new System.Diagnostics.ProcessStartInfo
-                                    {
-                                        FileName = _youtubeDl.FFmpegPath,
-                                        Arguments = $"-i \"{result.Data}\" -vn -ar 44100 -ac 2 -b:a 192k \"{mp3Path}\"",
-                                        UseShellExecute = false,
-                                        RedirectStandardOutput = true,
-                                        RedirectStandardError = true,
-                                        CreateNoWindow = true
-                                    }
-                                };
-
-                                process.Start();
-                                await process.WaitForExitAsync();
-
-                                // Delete the original file after conversion
-                                if (File.Exists(mp3Path))
-                                {
-                                    File.Delete(result.Data);
-                                    result = new YoutubeDLSharp.RunResult<string>(true, Array.Empty<string>(), mp3Path);
-                                }
-                                else
-                                {
-                                    throw new Exception("FFmpeg conversion failed");
-                                }
-                            }
-
+                            // Set file timestamps
                             File.SetCreationTime(result.Data, DateTime.Now);
                             File.SetLastWriteTime(result.Data, DateTime.Now);
                             File.SetLastAccessTime(result.Data, DateTime.Now);
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Failed to update file: {ex.Message}");
-                            UpdateStatus($"Error converting file: {ex.Message}");
+                            Logger.LogError(ex, "Failed to update timestamps");
                         }
                     }
 
