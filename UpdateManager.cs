@@ -127,13 +127,36 @@ namespace YoutubeDownloader
                 var exePath = Path.Combine(updatePath, "YoutubeDownloader.exe");
                 Logger.Log($"Downloading update from: {downloadUrl}");
                 
-                // Download directly as exe, not zip
-                var response = await _httpClient.GetAsync(downloadUrl);
-                using (var fs = new FileStream(exePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                // Increase timeout and add progress logging
+                using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromMinutes(5); // Increase timeout to 5 minutes
+
+                // Download with progress reporting
+                using var response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                using var stream = await response.Content.ReadAsStreamAsync();
+                using var fileStream = new FileStream(exePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                
+                var buffer = new byte[8192];
+                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+                var bytesRead = 0L;
+
+                while (true)
                 {
-                    await response.Content.CopyToAsync(fs);
-                    await fs.FlushAsync();
+                    var count = await stream.ReadAsync(buffer);
+                    if (count == 0) break;
+                    
+                    await fileStream.WriteAsync(buffer.AsMemory(0, count));
+                    bytesRead += count;
+                    
+                    if (totalBytes > 0)
+                    {
+                        var progress = (double)bytesRead / totalBytes * 100;
+                        Logger.Log($"Download progress: {progress:F1}%", true);
+                    }
                 }
+
+                await fileStream.FlushAsync();
+                Logger.Log("Update download completed");
 
                 // Get the current executable path
                 var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
@@ -144,7 +167,7 @@ namespace YoutubeDownloader
 
                 Logger.Log($"Update downloaded to: {exePath}");
                 
-                // Get updater from AppData instead of app directory
+                // Get updater from AppData
                 var updaterPath = Path.Combine(_dependenciesPath, "Updater.exe");
 
                 if (!File.Exists(updaterPath))
@@ -153,7 +176,7 @@ namespace YoutubeDownloader
                     return false;
                 }
 
-                // Start the updater process
+                // Start the updater process with proper arguments
                 var processInfo = new ProcessStartInfo
                 {
                     FileName = updaterPath,
@@ -162,7 +185,7 @@ namespace YoutubeDownloader
                     Verb = "runas"
                 };
 
-                Logger.Log("Starting updater process");
+                Logger.Log($"Starting updater process with arguments: {processInfo.Arguments}");
                 Process.Start(processInfo);
                 
                 // Exit current process
