@@ -20,6 +20,7 @@ using Windows.Storage.Streams;
 using YoutubeDownloader;
 using System.Runtime.InteropServices;
 using System.Threading;
+using FFMpegCore;
 
 namespace YoutubeDownloader
 {
@@ -348,84 +349,78 @@ namespace YoutubeDownloader
                     options.ConvertSubs = "srt";
                 }
 
+                string outputFormat = (OutputFormatComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "mp4";
+                
                 if (isMP4)
                 {
-                    string format = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
+                    string format = "bestvideo+bestaudio/best";
                     if (QualityComboBox.SelectedItem?.ToString() != "Best")
                     {
                         string quality = QualityComboBox.SelectedItem?.ToString()?.Replace("p", "") ?? "1080";
-                        format = $"bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/best[height<={quality}][ext=mp4]";
+                        format = $"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]";
                     }
-
+                    
                     options.Format = format;
-                    options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
-                    options.RestrictFilenames = true;
-                    options.NoPlaylist = true;
-                    options.PreferFreeFormats = true;
-
-                    var result = await _youtubeDl.RunVideoDownload(
-                        url,
-                        format,
-                        DownloadMergeFormat.Mp4,
-                        progress: progress
-                    );
-
-                    if (result.Success && File.Exists(result.Data))
-                    {
-                        try
-                        {
-                            File.SetCreationTime(result.Data, DateTime.Now);
-                            File.SetLastWriteTime(result.Data, DateTime.Now);
-                            File.SetLastAccessTime(result.Data, DateTime.Now);
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Failed to update timestamps: {ex.Message}");
-                        }
-                    }
-
-                    HandleResult(result, videoInfo.Data.Title, true);
                 }
                 else
                 {
-                    // Set up options for MP3 download
-                    var format = "bestaudio/best";
-                    options.Format = format;
+                    options.Format = "bestaudio/best";
                     options.ExtractAudio = true;
                     options.AudioFormat = AudioConversionFormat.Mp3;
                     options.AudioQuality = 192;
-                    options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
-                    options.RestrictFilenames = true;
-                    options.NoPlaylist = true;
-                    options.PreferFreeFormats = true;
-
-                    // Run the download
-                    var result = await _youtubeDl.RunVideoDownload(
-                        url,
-                        format,
-                        DownloadMergeFormat.Mkv,
-                        progress: progress,
-                        ct: CancellationToken.None,
-                        overrideOptions: options
-                    );
-
-                    if (result.Success && File.Exists(result.Data))
-                    {
-                        try
-                        {
-                            // Set file timestamps
-                            File.SetCreationTime(result.Data, DateTime.Now);
-                            File.SetLastWriteTime(result.Data, DateTime.Now);
-                            File.SetLastAccessTime(result.Data, DateTime.Now);
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.LogError(ex, "Failed to update timestamps");
-                        }
-                    }
-
-                    HandleResult(result, videoInfo.Data.Title, false);
                 }
+
+                options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
+                options.RestrictFilenames = true;
+                options.NoPlaylist = true;
+                options.PreferFreeFormats = true;
+
+                // Download as MKV first if MOV is selected
+                var downloadFormat = outputFormat == "mov" ? DownloadMergeFormat.Mkv : 
+                                   outputFormat == "mp4" ? DownloadMergeFormat.Mp4 : 
+                                   DownloadMergeFormat.Mkv;
+
+                var result = await _youtubeDl.RunVideoDownload(
+                    url,
+                    options.Format,
+                    downloadFormat,
+                    progress: progress,
+                    ct: CancellationToken.None,
+                    overrideOptions: options
+                );
+
+                // If MOV format is selected and download was successful, convert to MOV
+                if (outputFormat == "mov" && result.Success && File.Exists(result.Data))
+                {
+                    var movPath = Path.ChangeExtension(result.Data, ".mov");
+                    UpdateStatus("Converting to MOV format...");
+                    
+                    var ffmpeg = new FFMpegCore.FFMpeg();
+                    await Task.Run(() => ffmpeg.Convert(new FFMpegCore.Arguments.InputArguments(result.Data),
+                                                      new FFMpegCore.Arguments.OutputArguments(movPath)));
+                    
+                    // Delete the original MKV file
+                    File.Delete(result.Data);
+                    result.Data = movPath;
+                    UpdateStatus("Conversion complete");
+                }
+
+                if (result.Success && File.Exists(result.Data))
+                {
+                    try
+                    {
+                        // Set file timestamps
+                        File.SetCreationTime(result.Data, DateTime.Now);
+                        File.SetLastWriteTime(result.Data, DateTime.Now);
+                        File.SetLastAccessTime(result.Data, DateTime.Now);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Failed to update timestamps");
+                    }
+                }
+
+                HandleResult(result, videoInfo.Data.Title, isMP4);
 
                 if (videoInfo.Success)
                 {

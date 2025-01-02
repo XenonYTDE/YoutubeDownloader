@@ -77,7 +77,8 @@ namespace YoutubeDownloader
                 var logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR in {context}:\n" +
                                 $"Message: {ex.Message}\n" +
                                 $"Stack Trace: {ex.StackTrace}\n" +
-                                $"Source: {ex.Source}\n";
+                                $"Source: {ex.Source}\n" +
+                                $"Target Site: {ex.TargetSite}\n";
                 
                 if (ex.InnerException != null)
                 {
