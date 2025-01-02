@@ -176,13 +176,68 @@ namespace YoutubeDownloader
             }
         }
 
-        private async Task<List<GitHubRelease>> GetAllReleases()
+        private bool IsNewerVersion(string version1, string version2)
         {
             try
             {
-                // Use releases API
+                // Split version and suffix (e.g., "1.1.3b" -> "1.1.3" and "b")
+                var v1Parts = SplitVersionAndSuffix(version1);
+                var v2Parts = SplitVersionAndSuffix(version2);
+
+                // Compare numeric versions first
+                var v1Numeric = Version.Parse(v1Parts.NumericVersion);
+                var v2Numeric = Version.Parse(v2Parts.NumericVersion);
+
+                if (v1Numeric != v2Numeric)
+                {
+                    return v1Numeric > v2Numeric;
+                }
+
+                // If numeric versions are equal, compare suffixes
+                // No suffix is considered lower than any suffix
+                if (string.IsNullOrEmpty(v1Parts.Suffix) && !string.IsNullOrEmpty(v2Parts.Suffix))
+                    return false;
+                if (!string.IsNullOrEmpty(v1Parts.Suffix) && string.IsNullOrEmpty(v2Parts.Suffix))
+                    return true;
+
+                return string.Compare(v1Parts.Suffix, v2Parts.Suffix, StringComparison.OrdinalIgnoreCase) > 0;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "IsNewerVersion");
+                return false;
+            }
+        }
+
+        private (string NumericVersion, string Suffix) SplitVersionAndSuffix(string version)
+        {
+            // Remove 'v' prefix if present
+            version = version.TrimStart('v');
+            
+            // Find where the numbers end
+            int i = 0;
+            while (i < version.Length && (char.IsDigit(version[i]) || version[i] == '.'))
+                i++;
+
+            var numericPart = i > 0 ? version[..i] : "0.0.0";
+            var suffix = i < version.Length ? version[i..] : "";
+
+            return (numericPart, suffix);
+        }
+
+        public async Task<List<GitHubRelease>> GetAllReleases()
+        {
+            try
+            {
                 var response = await _httpClient.GetStringAsync(_updateUrl);
-                return JsonSerializer.Deserialize<List<GitHubRelease>>(response) ?? new List<GitHubRelease>();
+                var releases = JsonSerializer.Deserialize<List<GitHubRelease>>(response) ?? new List<GitHubRelease>();
+                
+                // Sort releases using the new version comparison
+                releases.Sort((a, b) => 
+                    IsNewerVersion(a.TagName, b.TagName) ? -1 : 
+                    IsNewerVersion(b.TagName, a.TagName) ? 1 : 0);
+                
+                return releases;
             }
             catch (Exception ex)
             {

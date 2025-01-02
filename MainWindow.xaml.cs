@@ -34,7 +34,7 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.3"; // Added QoL improvements
+        private readonly string _currentVersion = "1.1.3b"; // Changed from "1.1.3"
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
@@ -133,7 +133,7 @@ namespace YoutubeDownloader
                     Logger.Log("UI settings initialized");
                     
                     VersionText.Text = _currentVersion;
-                    Logger.Log("Version text set");
+                    Logger.Log($"Version text set to: {_currentVersion}");
                 }
                 catch (Exception ex)
                 {
