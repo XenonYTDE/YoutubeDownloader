@@ -9,13 +9,17 @@ namespace YoutubeDownloader
     public class UpdateManager
     {
         private readonly string _currentVersion;
-        private readonly string _updateUrl = "https://api.github.com/repos/XenonYTDE/YoutubeDownloader/releases/latest";
+        private readonly string _updateUrl = "https://api.github.com/repos/XenonYTDE/YoutubeDownloader/releases";
         private readonly string _dependenciesPath;
+        private readonly HttpClient _httpClient;
+        private const string UpdateScriptName = "update.ps1";  // Change to PowerShell script
 
         public UpdateManager(string currentVersion, string dependenciesPath)
         {
             _currentVersion = currentVersion;
             _dependenciesPath = dependenciesPath;
+            _httpClient = new HttpClient();
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
         }
 
         public async Task<(bool Available, string NewVersion, string DownloadUrl, string? PatchNotes)?> CheckForUpdates()
@@ -84,77 +88,76 @@ namespace YoutubeDownloader
         {
             try
             {
-                Logger.Log("Starting update download and installation");
                 var updatePath = Path.Combine(_dependenciesPath, "update");
                 Directory.CreateDirectory(updatePath);
 
-                var installerPath = Path.Combine(updatePath, "YoutubeDownloader_new.exe");
-                Logger.Log($"Download URL: {downloadUrl}");
-                Logger.Log($"Update path: {updatePath}");
-                Logger.Log($"Installer path: {installerPath}");
-                
-                using (var client = new HttpClient())
+                // Download the new version
+                var zipPath = Path.Combine(updatePath, "update.zip");
+                var response = await _httpClient.GetAsync(downloadUrl);
+                using (var fs = new FileStream(zipPath, FileMode.Create))
                 {
-                    client.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
-                    
-                    Logger.Log("Starting download");
-                    var response = await client.GetAsync(downloadUrl);
-                    Logger.Log($"Download response status: {response.StatusCode}");
-                    response.EnsureSuccessStatusCode();
-                    
-                    await using var fs = new FileStream(installerPath, FileMode.Create);
                     await response.Content.CopyToAsync(fs);
                 }
 
-                if (!File.Exists(installerPath))
-                {
-                    Logger.Log("ERROR: Downloaded file not found");
-                    throw new Exception("Downloaded file not found");
-                }
-
-                var fileInfo = new FileInfo(installerPath);
-                Logger.Log($"File downloaded successfully: {fileInfo.Length} bytes");
-
-                var scriptPath = Path.Combine(updatePath, "update.vbs");
+                // Create PowerShell update script
                 var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
-                
-                if (currentExePath == null)
-                {
-                    Logger.Log("ERROR: Could not determine current executable path");
-                    throw new Exception("Could not determine current executable path");
-                }
+                if (currentExePath == null) return false;
 
-                Logger.Log($"Current exe path: {currentExePath}");
-                
-                var scriptContent = $@"
-Set objShell = CreateObject(""WScript.Shell"")
-WScript.Sleep 2000 ' Wait 2 seconds
-objShell.Run ""cmd /c copy /y ""{installerPath}"" ""{currentExePath}"""", 0, True
-objShell.Run ""cmd /c del ""{installerPath}"""", 0, True
-objShell.Run ""cmd /c start """" ""{currentExePath}"""", 0, False
-WScript.Sleep 1000 ' Wait 1 second
-Set objFSO = CreateObject(""Scripting.FileSystemObject"")
-objFSO.DeleteFile WScript.ScriptFullName
-";
+                var currentDir = Path.GetDirectoryName(currentExePath);
+                var errorLogPath = Path.Combine(_dependenciesPath, "update_error.log");
 
+                // Use @ for verbatim string and escape { with {{
+                var scriptContent = @"
+$ErrorActionPreference = 'Stop'
+try {
+    # Hide the window completely
+    $WindowCode = '[DllImport(""user32.dll"")] public static extern bool ShowWindow(int handle, int state);'
+    add-type -name win -member $WindowCode -namespace native
+    [native.win]::ShowWindow(([System.Diagnostics.Process]::GetCurrentProcess() | Get-Process).MainWindowHandle, 0)
+    
+    Start-Sleep -Seconds 1
+    Expand-Archive -Path '" + zipPath + @"' -DestinationPath '" + updatePath + @"' -Force
+    
+    # Copy all files from update folder to application folder
+    Get-ChildItem -Path '" + updatePath + @"' -Recurse | ForEach-Object {
+        $destPath = $_.FullName.Replace('" + updatePath + "', '" + currentDir + @"')
+        if ($_.PSIsContainer) {
+            New-Item -ItemType Directory -Path $destPath -Force -ErrorAction SilentlyContinue
+        } else {
+            Copy-Item -Path $_.FullName -Destination $destPath -Force
+        }
+    }
+
+    # Cleanup
+    Remove-Item -Path '" + updatePath + @"' -Recurse -Force
+    
+    # Start the updated application
+    Start-Process -FilePath '" + currentExePath + @"'
+} catch {
+    [System.IO.File]::AppendAllText('" + errorLogPath + @"', $_.Exception.Message)
+    exit 1
+}";
+
+                var scriptPath = Path.Combine(_dependenciesPath, UpdateScriptName);
                 await File.WriteAllTextAsync(scriptPath, scriptContent);
-                Logger.Log($"Update script created at: {scriptPath}");
 
-                Process.Start(new ProcessStartInfo
+                // Execute the update script
+                var startInfo = new ProcessStartInfo
                 {
-                    FileName = "wscript.exe",
-                    Arguments = $"\"{scriptPath}\"",
+                    FileName = "powershell.exe",
+                    Arguments = $"-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File \"{scriptPath}\"",
                     UseShellExecute = true,
                     CreateNoWindow = true,
+                    Verb = "runas",
                     WindowStyle = ProcessWindowStyle.Hidden
-                });
+                };
 
-                Logger.Log("Update script started");
+                using var process = Process.Start(startInfo);
                 return true;
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "DownloadAndInstallUpdate");
+                Debug.WriteLine($"Update failed: {ex}");
                 return false;
             }
         }
@@ -163,11 +166,8 @@ objFSO.DeleteFile WScript.ScriptFullName
         {
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
-                
-                // Use releases API instead of latest
-                var response = await client.GetStringAsync(_updateUrl.Replace("/latest", ""));
+                // Use releases API
+                var response = await _httpClient.GetStringAsync(_updateUrl);
                 return JsonSerializer.Deserialize<List<GitHubRelease>>(response) ?? new List<GitHubRelease>();
             }
             catch (Exception ex)
