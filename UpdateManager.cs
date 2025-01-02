@@ -1,13 +1,14 @@
 using System.Net.Http;
 using System.Text.Json;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace YoutubeDownloader
 {
     public class UpdateManager
     {
         private readonly string _currentVersion;
-        private readonly string _updateUrl = "YOUR_UPDATE_JSON_URL"; // e.g., "https://api.github.com/repos/yourusername/YoutubeDownloader/releases/latest"
+        private readonly string _updateUrl = "https://api.github.com/repos/XenonYTDE/YoutubeDownloader/releases/latest";
         private readonly string _dependenciesPath;
 
         public UpdateManager(string currentVersion, string dependenciesPath)
