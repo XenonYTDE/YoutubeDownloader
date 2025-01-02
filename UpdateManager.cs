@@ -182,14 +182,28 @@ namespace YoutubeDownloader
                     FileName = updaterPath,
                     Arguments = $"\"{currentExePath}\" \"{updatePath}\" \"{currentDir}\"",
                     UseShellExecute = true,
-                    Verb = "runas"
+                    Verb = "runas",
+                    WorkingDirectory = currentDir
                 };
 
-                Logger.Log($"Starting updater process with arguments: {processInfo.Arguments}");
-                Process.Start(processInfo);
-                
-                // Exit current process
-                Environment.Exit(0);
+                Logger.Log($"Starting updater with:");
+                Logger.Log($"- Path: {updaterPath}");
+                Logger.Log($"- Arguments: {processInfo.Arguments}");
+                Logger.Log($"- Working Directory: {currentDir}");
+
+                try 
+                {
+                    Process.Start(processInfo);
+                    Logger.Log("Updater process started successfully");
+                    Thread.Sleep(1000); // Give the updater time to start
+                    Environment.Exit(0);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Failed to start updater");
+                    return false;
+                }
+
                 return true;
             }
             catch (Exception ex)
