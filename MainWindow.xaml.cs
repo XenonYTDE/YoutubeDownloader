@@ -30,12 +30,21 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.0.9"; // Changed from 1.0.8
+        private readonly string _currentVersion = "1.1.0"; // Major update from 1.0.10
+        private Settings _settings;
+        private readonly string _settingsPath;
 
         public MainWindow()
         {
             InitializeComponent();
             Title = "YouTube Downloader";
+            
+            // Add settings initialization
+            _settingsPath = Path.Combine(_dependenciesPath, "settings.json");
+            _settings = LoadSettings();
+            
+            // Initialize UI with settings
+            InitializeSettings();
             
             // Add this line after InitializeComponent
             VersionText.Text = _currentVersion;
@@ -116,9 +125,11 @@ namespace YoutubeDownloader
 
                 string outputPath = !string.IsNullOrEmpty(LocationTextBox.Text)
                     ? LocationTextBox.Text
-                    : (isMP4 
-                        ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
-                        : Environment.GetFolderPath(Environment.SpecialFolder.MyMusic));
+                    : (!string.IsNullOrEmpty(_settings.DefaultDownloadPath)
+                        ? _settings.DefaultDownloadPath
+                        : (isMP4 
+                            ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
+                            : Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)));
 
                 // Configure download options with specific output template
                 _youtubeDl.OutputFolder = outputPath;
@@ -284,6 +295,17 @@ namespace YoutubeDownloader
                     {
                         await LoadThumbnail(videoInfo.Data.Thumbnails.Last().Url);
                     }
+                }
+
+                if (_settings.DownloadThumbnails)
+                {
+                    // Download thumbnail logic here
+                }
+
+                if (_settings.DownloadSubtitles)
+                {
+                    options.WriteAutoSub = true;
+                    options.SubFormat = "srt";
                 }
             }
             catch (Exception ex)
@@ -814,6 +836,115 @@ $Shortcut.Save()";
             catch (Exception ex)
             {
                 Logger.LogError(ex, "CreateStartMenuShortcut");
+            }
+        }
+
+        private void InitializeSettings()
+        {
+            // Initialize quality options
+            DefaultQualityComboBox.Items.Add("Best");
+            DefaultQualityComboBox.Items.Add("1080p");
+            DefaultQualityComboBox.Items.Add("720p");
+            DefaultQualityComboBox.Items.Add("480p");
+            DefaultQualityComboBox.Items.Add("360p");
+            
+            // Set UI elements from settings
+            DefaultLocationBox.Text = _settings.DefaultDownloadPath;
+            DefaultQualityComboBox.SelectedItem = _settings.DefaultQuality;
+            MinimizeToTrayCheckBox.IsChecked = _settings.MinimizeToTray;
+            RememberPositionCheckBox.IsChecked = _settings.RememberWindowPosition;
+            AutoUpdateDepsCheckBox.IsChecked = _settings.AutoUpdateDependencies;
+            DownloadThumbnailsCheckBox.IsChecked = _settings.DownloadThumbnails;
+            DownloadSubtitlesCheckBox.IsChecked = _settings.DownloadSubtitles;
+            ThemeComboBox.SelectedItem = _settings.Theme;
+
+            // Apply theme
+            ApplyTheme(_settings.Theme);
+        }
+
+        private Settings LoadSettings()
+        {
+            try
+            {
+                if (File.Exists(_settingsPath))
+                {
+                    var json = File.ReadAllText(_settingsPath);
+                    return JsonSerializer.Deserialize<Settings>(json) ?? new Settings();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "LoadSettings");
+            }
+            return new Settings();
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_settingsPath, json);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "SaveSettings");
+            }
+        }
+
+        private void Setting_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!IsLoaded) return; // Avoid saving during initialization
+
+            _settings.MinimizeToTray = MinimizeToTrayCheckBox.IsChecked ?? false;
+            _settings.RememberWindowPosition = RememberPositionCheckBox.IsChecked ?? false;
+            _settings.AutoUpdateDependencies = AutoUpdateDepsCheckBox.IsChecked ?? false;
+            _settings.DownloadThumbnails = DownloadThumbnailsCheckBox.IsChecked ?? false;
+            _settings.DownloadSubtitles = DownloadSubtitlesCheckBox.IsChecked ?? false;
+            _settings.DefaultQuality = DefaultQualityComboBox.SelectedItem?.ToString() ?? "Best";
+            
+            SaveSettings();
+        }
+
+        private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded) return;
+
+            var theme = ThemeComboBox.SelectedItem?.ToString() ?? "System";
+            _settings.Theme = theme;
+            ApplyTheme(theme);
+            SaveSettings();
+        }
+
+        private void ApplyTheme(string theme)
+        {
+            if (Content is FrameworkElement rootElement)
+            {
+                rootElement.RequestedTheme = theme switch
+                {
+                    "Light" => ElementTheme.Light,
+                    "Dark" => ElementTheme.Dark,
+                    _ => ElementTheme.Default
+                };
+            }
+        }
+
+        private async void DefaultLocationBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var folderPicker = new Windows.Storage.Pickers.FolderPicker();
+            
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, hwnd);
+            
+            folderPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Downloads;
+            folderPicker.FileTypeFilter.Add("*");
+
+            var folder = await folderPicker.PickSingleFolderAsync();
+            if (folder != null)
+            {
+                DefaultLocationBox.Text = folder.Path;
+                _settings.DefaultDownloadPath = folder.Path;
+                SaveSettings();
             }
         }
     }

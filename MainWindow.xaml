@@ -214,6 +214,89 @@
                         </ListView>
                     </Grid>
                 </TabViewItem>
+
+                <!-- Settings Tab -->
+                <TabViewItem Header="Settings">
+                    <ScrollViewer>
+                        <StackPanel Padding="20" Spacing="16">
+                            <TextBlock Text="General Settings" 
+                                     Style="{StaticResource SubtitleTextBlockStyle}"/>
+                            
+                            <!-- Download Location -->
+                            <StackPanel>
+                                <TextBlock Text="Default Download Location" 
+                                         Style="{StaticResource BodyTextBlockStyle}"/>
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="DefaultLocationBox" 
+                                            IsReadOnly="True"/>
+                                    <Button Grid.Column="1" 
+                                            Margin="8,0,0,0"
+                                            Click="DefaultLocationBrowse_Click">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" 
+                                                Glyph="&#xE8DA;"/>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Theme -->
+                            <StackPanel>
+                                <TextBlock Text="Theme" 
+                                         Style="{StaticResource BodyTextBlockStyle}"/>
+                                <ComboBox x:Name="ThemeComboBox" 
+                                         Margin="0,8,0,0"
+                                         SelectionChanged="ThemeComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="System"/>
+                                    <ComboBoxItem Content="Light"/>
+                                    <ComboBoxItem Content="Dark"/>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Other Settings -->
+                            <StackPanel>
+                                <CheckBox x:Name="MinimizeToTrayCheckBox" 
+                                         Content="Minimize to System Tray"
+                                         Checked="Setting_Changed"
+                                         Unchecked="Setting_Changed"/>
+                                <CheckBox x:Name="RememberPositionCheckBox" 
+                                         Content="Remember Window Position"
+                                         Checked="Setting_Changed"
+                                         Unchecked="Setting_Changed"/>
+                                <CheckBox x:Name="AutoUpdateDepsCheckBox" 
+                                         Content="Auto-update Dependencies"
+                                         Checked="Setting_Changed"
+                                         Unchecked="Setting_Changed"/>
+                            </StackPanel>
+
+                            <!-- Download Settings -->
+                            <TextBlock Text="Download Settings" 
+                                     Style="{StaticResource SubtitleTextBlockStyle}"
+                                     Margin="0,8,0,0"/>
+                            
+                            <StackPanel>
+                                <TextBlock Text="Default Quality" 
+                                         Style="{StaticResource BodyTextBlockStyle}"/>
+                                <ComboBox x:Name="DefaultQualityComboBox" 
+                                         Margin="0,8,0,0"
+                                         SelectionChanged="Setting_Changed"/>
+                            </StackPanel>
+
+                            <StackPanel>
+                                <CheckBox x:Name="DownloadThumbnailsCheckBox" 
+                                         Content="Download Video Thumbnails"
+                                         Checked="Setting_Changed"
+                                         Unchecked="Setting_Changed"/>
+                                <CheckBox x:Name="DownloadSubtitlesCheckBox" 
+                                         Content="Download Subtitles (when available)"
+                                         Checked="Setting_Changed"
+                                         Unchecked="Setting_Changed"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabViewItem>
             </TabView.TabItems>
         </TabView>
     </Grid>

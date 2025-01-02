@@ -115,7 +115,7 @@ namespace YoutubeDownloader
                 var fileInfo = new FileInfo(installerPath);
                 Logger.Log($"File downloaded successfully: {fileInfo.Length} bytes");
 
-                var scriptPath = Path.Combine(updatePath, "update.bat");
+                var scriptPath = Path.Combine(updatePath, "update.vbs");
                 var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
                 
                 if (currentExePath == null)
@@ -127,12 +127,14 @@ namespace YoutubeDownloader
                 Logger.Log($"Current exe path: {currentExePath}");
                 
                 var scriptContent = $@"
-@echo off
-timeout /t 2 /nobreak
-copy /Y ""{installerPath}"" ""{currentExePath}""
-start """" ""{currentExePath}""
-del ""{installerPath}""
-del ""%~f0""
+Set objShell = CreateObject(""WScript.Shell"")
+WScript.Sleep 2000 ' Wait 2 seconds
+objShell.Run ""cmd /c copy /y ""{installerPath}"" ""{currentExePath}"""", 0, True
+objShell.Run ""cmd /c del ""{installerPath}"""", 0, True
+objShell.Run ""cmd /c start """" ""{currentExePath}"""", 0, False
+WScript.Sleep 1000 ' Wait 1 second
+Set objFSO = CreateObject(""Scripting.FileSystemObject"")
+objFSO.DeleteFile WScript.ScriptFullName
 ";
 
                 await File.WriteAllTextAsync(scriptPath, scriptContent);
@@ -140,10 +142,11 @@ del ""%~f0""
 
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = scriptPath,
-                    CreateNoWindow = true,
+                    FileName = "wscript.exe",
+                    Arguments = $"\"{scriptPath}\"",
                     UseShellExecute = true,
-                    Verb = "runas"
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
                 });
 
                 Logger.Log("Update script started");
