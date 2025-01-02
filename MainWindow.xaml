@@ -144,6 +144,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <FontIcon Grid.Column="0" 
                                                  Margin="0,0,12,0"
@@ -163,9 +164,17 @@
                                                    Margin="12,0"/>
                                         <Button Grid.Column="3" 
                                                 Click="OpenFileLocation_Click"
-                                                CommandParameter="{Binding FilePath}">
+                                                CommandParameter="{Binding FilePath}"
+                                                Margin="0,0,8,0">
                                             <FontIcon FontFamily="Segoe Fluent Icons" 
                                                       Glyph="&#xE838;"/>
+                                        </Button>
+                                        <Button Grid.Column="4" 
+                                                Click="DeleteHistoryItem_Click"
+                                                CommandParameter="{Binding}">
+                                            <FontIcon FontFamily="Segoe Fluent Icons" 
+                                                      Glyph="&#xE74D;"
+                                                      Foreground="Red"/>
                                         </Button>
                                     </Grid>
                                 </DataTemplate>

@@ -30,7 +30,7 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.0.1"; // Changed from 1.0.0
+        private readonly string _currentVersion = "1.0.3"; // Changed from 1.0.0
 
         public MainWindow()
         {
@@ -635,6 +635,30 @@ namespace YoutubeDownloader
             catch (Exception ex)
             {
                 Debug.WriteLine($"Update check failed: {ex.Message}");
+            }
+        }
+
+        private async void DeleteHistoryItem_Click(object sender, RoutedEventArgs e)
+        {
+            var button = (Button)sender;
+            var item = (DownloadHistoryItem)button.CommandParameter;
+
+            // Show confirmation dialog
+            var dialog = new ContentDialog
+            {
+                Title = "Delete from History",
+                Content = "Are you sure you want to delete this item from history?",
+                PrimaryButtonText = "Delete",
+                SecondaryButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Secondary,
+                XamlRoot = Content.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                _downloadHistory.Remove(item);
+                SaveDownloadHistory();
             }
         }
     }
