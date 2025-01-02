@@ -32,7 +32,7 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.1"; // Added QoL improvements
+        private readonly string _currentVersion = "1.1.0"; // Added QoL improvements
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;

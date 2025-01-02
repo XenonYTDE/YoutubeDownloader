@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
 using System.IO;
+using System.IO.Compression;
 
 namespace YoutubeDownloader
 {
@@ -97,6 +98,8 @@ namespace YoutubeDownloader
 
                 // Download the new version
                 var zipPath = Path.Combine(updatePath, "update.zip");
+                Logger.Log($"Downloading update from: {downloadUrl}");
+                
                 var response = await _httpClient.GetAsync(downloadUrl);
                 using (var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
@@ -111,82 +114,35 @@ namespace YoutubeDownloader
                 var currentDir = Path.GetDirectoryName(currentExePath);
                 if (currentDir == null) return false;
 
-                // Create absolute paths
-                updatePath = Path.GetFullPath(updatePath);
-                currentDir = Path.GetFullPath(currentDir);
-                zipPath = Path.GetFullPath(zipPath);
+                Logger.Log($"Extracting update to: {updatePath}");
                 
-                var errorLogPath = Path.Combine(_dependenciesPath, "update_error.log");
+                // Extract the update
+                ZipFile.ExtractToDirectory(zipPath, updatePath, true);
 
-                var scriptContent = @"
-$ErrorActionPreference = 'Stop'
-try {
-    # Hide the window completely
-    $WindowCode = '[DllImport(""user32.dll"")] public static extern bool ShowWindow(int handle, int state);'
-    add-type -name win -member $WindowCode -namespace native
-    [native.win]::ShowWindow(([System.Diagnostics.Process]::GetCurrentProcess() | Get-Process).MainWindowHandle, 0)
-    
-    Start-Sleep -Seconds 2
-
-    # Log update start
-    Add-Content -Path '" + errorLogPath + @"' -Value ""Update started at $(Get-Date)""
-    Add-Content -Path '" + errorLogPath + @"' -Value ""Extracting from: " + zipPath + @"""
-    Add-Content -Path '" + errorLogPath + @"' -Value ""Updating to: " + currentDir + @"""
-
-    # Make sure the zip file exists and is valid
-    if (-not (Test-Path '" + zipPath + @"')) {
-        throw 'Update zip file not found'
-    }
-
-    # Clean the update directory first
-    if (Test-Path '" + updatePath + @"') {
-        Remove-Item -Path '" + updatePath + @"' -Recurse -Force
-    }
-    New-Item -ItemType Directory -Path '" + updatePath + @"' -Force | Out-Null
-
-    # Extract files
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [System.IO.Compression.ZipFile]::ExtractToDirectory('" + zipPath + @"', '" + updatePath + @"')
-
-    # Copy files
-    Get-ChildItem -Path '" + updatePath + @"' -Recurse | ForEach-Object {
-        $destPath = $_.FullName.Replace('" + updatePath + @"', '" + currentDir + @"')
-        if ($_.PSIsContainer) {
-            New-Item -ItemType Directory -Path $destPath -Force -ErrorAction SilentlyContinue | Out-Null
-        } else {
-            Copy-Item -Path $_.FullName -Destination $destPath -Force
-        }
-    }
-
-    # Cleanup
-    Remove-Item -Path '" + updatePath + @"' -Recurse -Force
-    Remove-Item -Path '" + zipPath + @"' -Force
-    
-    # Start the updated application
-    Start-Process -FilePath '" + currentExePath + @"'
-
-    Add-Content -Path '" + errorLogPath + @"' -Value ""Update completed successfully at $(Get-Date)""
-} catch {
-    Add-Content -Path '" + errorLogPath + @"' -Value ""Update failed at $(Get-Date): $($_.Exception.Message)""
-    Add-Content -Path '" + errorLogPath + @"' -Value $_.Exception.StackTrace
-    exit 1
-}";
-
-                var scriptPath = Path.Combine(_dependenciesPath, UpdateScriptName);
-                await File.WriteAllTextAsync(scriptPath, scriptContent);
-
-                // Execute the update script
-                var startInfo = new ProcessStartInfo
+                // Create updater executable
+                var updaterPath = Path.Combine(_dependenciesPath, "Updater.exe");
+                using (var resource = typeof(UpdateManager).Assembly.GetManifestResourceStream("YoutubeDownloader.Resources.Updater.exe"))
                 {
-                    FileName = "powershell.exe",
-                    Arguments = $"-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File \"{scriptPath}\"",
+                    if (resource != null)
+                    {
+                        using var fs = new FileStream(updaterPath, FileMode.Create);
+                        await resource.CopyToAsync(fs);
+                    }
+                }
+
+                // Start the updater process
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = updaterPath,
+                    Arguments = $"\"{currentExePath}\" \"{updatePath}\" \"{currentDir}\"",
                     UseShellExecute = true,
-                    CreateNoWindow = true,
-                    Verb = "runas",
-                    WindowStyle = ProcessWindowStyle.Hidden
+                    Verb = "runas"
                 };
 
-                using var process = Process.Start(startInfo);
+                Process.Start(processInfo);
+                
+                // Exit current process
+                Environment.Exit(0);
                 return true;
             }
             catch (Exception ex)
