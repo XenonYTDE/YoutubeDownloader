@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "YoutubeDownloader": {
+      "commandName": "Project",
+      "nativeDebugging": false,
+      "hotReloadEnabled": true,
+      "remoteDebugEnabled": false,
+      "sqlDebugging": false,
+      "commandLineArgs": "",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "platform": "x64"
+    }
+  }
+}
