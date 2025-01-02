@@ -135,7 +135,26 @@
                 <!-- History Tab -->
                 <TabViewItem Header="History">
                     <Grid Padding="20">
-                        <ListView x:Name="HistoryListView">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        
+                        <!-- Add Clear All button -->
+                        <Button Grid.Row="0" 
+                                Click="ClearAllHistory_Click"
+                                Margin="0,0,0,12"
+                                HorizontalAlignment="Right">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontFamily="Segoe Fluent Icons" 
+                                          Glyph="&#xE74D;"
+                                          Foreground="Red"/>
+                                <TextBlock Text="Clear All History"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Existing ListView moved to Row 1 -->
+                        <ListView x:Name="HistoryListView" Grid.Row="1">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Padding="12" MinWidth="600">

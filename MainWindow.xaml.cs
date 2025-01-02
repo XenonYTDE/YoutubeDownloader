@@ -30,7 +30,7 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.0.3"; // Changed from 1.0.0
+        private readonly string _currentVersion = "1.0.6"; // Changed from 1.0.0
 
         public MainWindow()
         {
@@ -597,13 +597,21 @@ namespace YoutubeDownloader
         {
             try
             {
+                UpdateStatus("Checking for updates...");
                 var updateInfo = await _updateManager.CheckForUpdates();
-                if (updateInfo?.Available == true)
+                
+                if (updateInfo == null)
+                {
+                    UpdateStatus("Failed to check for updates");
+                    return;
+                }
+
+                if (updateInfo.Value.Available)
                 {
                     var dialog = new ContentDialog
                     {
                         Title = "Update Available",
-                        Content = $"Version {updateInfo.Value.NewVersion} is available. Would you like to update now?",
+                        Content = $"Version {updateInfo.Value.NewVersion} is available. Would you like to update now?\nDownload URL: {updateInfo.Value.DownloadUrl}",
                         PrimaryButtonText = "Update",
                         SecondaryButtonText = "Later",
                         XamlRoot = Content.XamlRoot
@@ -630,7 +638,8 @@ namespace YoutubeDownloader
                             var errorDialog = new ContentDialog
                             {
                                 Title = "Update Failed",
-                                Content = "Failed to download or install the update. Check the debug output for more details.",
+                                Content = "Failed to download or install the update. Check the Output window for details.\n\n" +
+                                         $"Download URL: {updateInfo.Value.DownloadUrl}",
                                 PrimaryButtonText = "OK",
                                 XamlRoot = Content.XamlRoot
                             };
@@ -639,11 +648,26 @@ namespace YoutubeDownloader
                         }
                     }
                 }
+                else
+                {
+                    UpdateStatus("No updates available");
+                }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Update check failed: {ex.Message}");
-                Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                var errorMessage = $"Update check failed: {ex.Message}\nStack trace: {ex.StackTrace}";
+                Debug.WriteLine(errorMessage);
+                
+                // Show error to user
+                var errorDialog = new ContentDialog
+                {
+                    Title = "Update Check Failed",
+                    Content = errorMessage,
+                    PrimaryButtonText = "OK",
+                    XamlRoot = Content.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+                UpdateStatus($"Update check failed: {ex.Message}");
             }
         }
 
@@ -667,6 +691,39 @@ namespace YoutubeDownloader
             if (result == ContentDialogResult.Primary)
             {
                 _downloadHistory.Remove(item);
+                SaveDownloadHistory();
+            }
+        }
+
+        private async void ClearAllHistory_Click(object sender, RoutedEventArgs e)
+        {
+            if (_downloadHistory.Count == 0)
+            {
+                var emptyDialog = new ContentDialog
+                {
+                    Title = "History Empty",
+                    Content = "There are no items in the history to clear.",
+                    PrimaryButtonText = "OK",
+                    XamlRoot = Content.XamlRoot
+                };
+                await emptyDialog.ShowAsync();
+                return;
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = "Clear All History",
+                Content = "Are you sure you want to clear all download history? This cannot be undone.",
+                PrimaryButtonText = "Clear All",
+                SecondaryButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Secondary,
+                XamlRoot = Content.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                _downloadHistory.Clear();
                 SaveDownloadHistory();
             }
         }
