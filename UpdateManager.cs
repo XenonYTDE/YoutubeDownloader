@@ -65,17 +65,43 @@ namespace YoutubeDownloader
 
                 var installerPath = Path.Combine(updatePath, "YoutubeDownloader_new.exe");
                 
+                // Add debug logging
+                Debug.WriteLine($"Download URL: {downloadUrl}");
+                Debug.WriteLine($"Update path: {updatePath}");
+                Debug.WriteLine($"Installer path: {installerPath}");
+                
                 using (var client = new HttpClient())
                 {
+                    // Add authorization for private repository downloads
+                    client.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
+                    client.DefaultRequestHeaders.Add("Authorization", $"token {_githubToken}");
+                    
                     var response = await client.GetAsync(downloadUrl);
+                    Debug.WriteLine($"Download response status: {response.StatusCode}");
                     response.EnsureSuccessStatusCode();
+                    
                     await using var fs = new FileStream(installerPath, FileMode.Create);
                     await response.Content.CopyToAsync(fs);
                 }
 
+                // Verify file was downloaded
+                if (!File.Exists(installerPath))
+                {
+                    throw new Exception("Downloaded file not found");
+                }
+
+                Debug.WriteLine($"File downloaded successfully: {new FileInfo(installerPath).Length} bytes");
+
                 // Create update script
                 var scriptPath = Path.Combine(updatePath, "update.bat");
                 var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
+                
+                if (currentExePath == null)
+                {
+                    throw new Exception("Could not determine current executable path");
+                }
+
+                Debug.WriteLine($"Current exe path: {currentExePath}");
                 
                 var scriptContent = $@"
 @echo off
@@ -87,13 +113,15 @@ del ""%~f0""
 ";
 
                 await File.WriteAllTextAsync(scriptPath, scriptContent);
+                Debug.WriteLine($"Update script created at: {scriptPath}");
 
                 // Run update script
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = scriptPath,
                     CreateNoWindow = true,
-                    UseShellExecute = true
+                    UseShellExecute = true,
+                    Verb = "runas"  // Request admin rights
                 });
 
                 return true;
@@ -101,6 +129,7 @@ del ""%~f0""
             catch (Exception ex)
             {
                 Debug.WriteLine($"Update installation failed: {ex.Message}");
+                Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
             }
         }

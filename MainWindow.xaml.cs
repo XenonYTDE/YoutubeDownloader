@@ -627,6 +627,14 @@ namespace YoutubeDownloader
                         }
                         else
                         {
+                            var errorDialog = new ContentDialog
+                            {
+                                Title = "Update Failed",
+                                Content = "Failed to download or install the update. Check the debug output for more details.",
+                                PrimaryButtonText = "OK",
+                                XamlRoot = Content.XamlRoot
+                            };
+                            await errorDialog.ShowAsync();
                             UpdateStatus("Update failed. Please try again later.");
                         }
                     }
@@ -635,6 +643,7 @@ namespace YoutubeDownloader
             catch (Exception ex)
             {
                 Debug.WriteLine($"Update check failed: {ex.Message}");
+                Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             }
         }
 
