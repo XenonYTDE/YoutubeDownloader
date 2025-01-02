@@ -43,8 +43,4 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
   </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\Updater.exe" />
-  </ItemGroup>
 </Project>

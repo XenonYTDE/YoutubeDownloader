@@ -120,15 +120,10 @@ namespace YoutubeDownloader
                 ZipFile.ExtractToDirectory(zipPath, updatePath, true);
 
                 // Create updater executable
-                var updaterPath = Path.Combine(_dependenciesPath, "Updater.exe");
-                using (var resource = typeof(UpdateManager).Assembly.GetManifestResourceStream("YoutubeDownloader.Resources.Updater.exe"))
-                {
-                    if (resource != null)
-                    {
-                        using var fs = new FileStream(updaterPath, FileMode.Create);
-                        await resource.CopyToAsync(fs);
-                    }
-                }
+                var updaterPath = Path.Combine(
+                    Path.GetDirectoryName(currentExePath) ?? "",
+                    "Updater.exe"
+                );
 
                 // Start the updater process
                 var processInfo = new ProcessStartInfo
