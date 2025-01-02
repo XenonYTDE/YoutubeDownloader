@@ -9,6 +9,7 @@ namespace YoutubeDownloader
     {
         private readonly string _currentVersion;
         private readonly string _updateUrl = "https://api.github.com/repos/XenonYTDE/YoutubeDownloader/releases/latest";
+        private readonly string _githubToken = "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";
         private readonly string _dependenciesPath;
 
         public UpdateManager(string currentVersion, string dependenciesPath)
@@ -22,8 +23,9 @@ namespace YoutubeDownloader
             try
             {
                 using var client = new HttpClient();
-                // Add User Agent for GitHub API
+                // Add User Agent and Authorization header
                 client.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
+                client.DefaultRequestHeaders.Add("Authorization", $"token {_githubToken}");
                 
                 var response = await client.GetStringAsync(_updateUrl);
                 var releaseInfo = JsonSerializer.Deserialize<GitHubRelease>(response);
