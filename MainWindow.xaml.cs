@@ -32,7 +32,7 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.0"; // Added QoL improvements
+        private readonly string _currentVersion = "1.1.2"; // Added QoL improvements
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
@@ -756,14 +756,8 @@ namespace YoutubeDownloader
         {
             try
             {
-                // Get the updater path
-                var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
-                if (currentExePath == null) return;
-
-                var updaterPath = Path.Combine(
-                    Path.GetDirectoryName(currentExePath) ?? "",
-                    "Updater.exe"
-                );
+                // Check for updater in AppData
+                var updaterPath = Path.Combine(_dependenciesPath, "Updater.exe");
 
                 if (!File.Exists(updaterPath))
                 {

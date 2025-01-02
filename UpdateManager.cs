@@ -31,13 +31,7 @@ namespace YoutubeDownloader
         {
             try
             {
-                var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
-                if (currentExePath == null) return;
-
-                var updaterPath = Path.Combine(
-                    Path.GetDirectoryName(currentExePath) ?? "",
-                    "Updater.exe"
-                );
+                var updaterPath = Path.Combine(_dependenciesPath, "Updater.exe");
 
                 if (!File.Exists(updaterPath))
                 {
@@ -47,7 +41,7 @@ namespace YoutubeDownloader
                     {
                         await response.Content.CopyToAsync(fs);
                     }
-                    Logger.Log("Updater downloaded successfully");
+                    Logger.Log($"Updater downloaded successfully to: {updaterPath}");
                 }
             }
             catch (Exception ex)
@@ -150,11 +144,8 @@ namespace YoutubeDownloader
 
                 Logger.Log($"Update downloaded to: {exePath}");
                 
-                // Start the updater process
-                var updaterPath = Path.Combine(
-                    Path.GetDirectoryName(currentExePath) ?? "",
-                    "Updater.exe"
-                );
+                // Get updater from AppData instead of app directory
+                var updaterPath = Path.Combine(_dependenciesPath, "Updater.exe");
 
                 if (!File.Exists(updaterPath))
                 {
