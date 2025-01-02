@@ -12,8 +12,6 @@ namespace YoutubeDownloader
             "debug.log"
         );
 
-        private static readonly int MaxLogAgeDays = 7; // Keep logs for 7 days
-
         static Logger()
         {
             try

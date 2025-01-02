@@ -14,6 +14,7 @@ namespace YoutubeDownloader
         private readonly string _dependenciesPath;
         private readonly HttpClient _httpClient;
         private const string UpdateScriptName = "update.ps1";  // Change to PowerShell script
+        private const string UpdaterUrl = "https://github.com/XenonYTDE/YoutubeDownloader/releases/latest/download/Updater.exe";
 
         public UpdateManager(string currentVersion, string dependenciesPath)
         {
@@ -21,6 +22,38 @@ namespace YoutubeDownloader
             _dependenciesPath = dependenciesPath;
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
+            
+            // Ensure Updater exists
+            _ = EnsureUpdaterExistsAsync();
+        }
+
+        private async Task EnsureUpdaterExistsAsync()
+        {
+            try
+            {
+                var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
+                if (currentExePath == null) return;
+
+                var updaterPath = Path.Combine(
+                    Path.GetDirectoryName(currentExePath) ?? "",
+                    "Updater.exe"
+                );
+
+                if (!File.Exists(updaterPath))
+                {
+                    Logger.Log("Updater not found. Downloading...");
+                    var response = await _httpClient.GetAsync(UpdaterUrl);
+                    using (var fs = new FileStream(updaterPath, FileMode.Create))
+                    {
+                        await response.Content.CopyToAsync(fs);
+                    }
+                    Logger.Log("Updater downloaded successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "EnsureUpdaterExists");
+            }
         }
 
         public async Task<(bool Available, string NewVersion, string DownloadUrl, string? PatchNotes)?> CheckForUpdates()
@@ -97,11 +130,12 @@ namespace YoutubeDownloader
                 Directory.CreateDirectory(updatePath);
 
                 // Download the new version
-                var zipPath = Path.Combine(updatePath, "update.zip");
+                var exePath = Path.Combine(updatePath, "YoutubeDownloader.exe");
                 Logger.Log($"Downloading update from: {downloadUrl}");
                 
+                // Download directly as exe, not zip
                 var response = await _httpClient.GetAsync(downloadUrl);
-                using (var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var fs = new FileStream(exePath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
                     await response.Content.CopyToAsync(fs);
                     await fs.FlushAsync();
@@ -114,16 +148,19 @@ namespace YoutubeDownloader
                 var currentDir = Path.GetDirectoryName(currentExePath);
                 if (currentDir == null) return false;
 
-                Logger.Log($"Extracting update to: {updatePath}");
+                Logger.Log($"Update downloaded to: {exePath}");
                 
-                // Extract the update
-                ZipFile.ExtractToDirectory(zipPath, updatePath, true);
-
-                // Create updater executable
+                // Start the updater process
                 var updaterPath = Path.Combine(
                     Path.GetDirectoryName(currentExePath) ?? "",
                     "Updater.exe"
                 );
+
+                if (!File.Exists(updaterPath))
+                {
+                    Logger.Log($"Updater not found at: {updaterPath}");
+                    return false;
+                }
 
                 // Start the updater process
                 var processInfo = new ProcessStartInfo
@@ -134,6 +171,7 @@ namespace YoutubeDownloader
                     Verb = "runas"
                 };
 
+                Logger.Log("Starting updater process");
                 Process.Start(processInfo);
                 
                 // Exit current process

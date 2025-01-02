@@ -756,6 +756,21 @@ namespace YoutubeDownloader
         {
             try
             {
+                // Get the updater path
+                var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
+                if (currentExePath == null) return;
+
+                var updaterPath = Path.Combine(
+                    Path.GetDirectoryName(currentExePath) ?? "",
+                    "Updater.exe"
+                );
+
+                if (!File.Exists(updaterPath))
+                {
+                    Logger.Log("Updater not found, skipping update check");
+                    return;
+                }
+
                 UpdateStatus("Checking for updates...");
                 var updateInfo = await _updateManager.CheckForUpdates();
                 
@@ -847,18 +862,7 @@ namespace YoutubeDownloader
             }
             catch (Exception ex)
             {
-                var errorMessage = $"Update check failed: {ex.Message}\nStack trace: {ex.StackTrace}";
-                Debug.WriteLine(errorMessage);
-                
-                // Show error to user
-                var errorDialog = new ContentDialog
-                {
-                    Title = "Update Check Failed",
-                    Content = errorMessage,
-                    PrimaryButtonText = "OK",
-                    XamlRoot = Content.XamlRoot
-                };
-                await errorDialog.ShowAsync();
+                Logger.LogError(ex, "CheckForUpdates");
                 UpdateStatus($"Update check failed: {ex.Message}");
             }
         }
