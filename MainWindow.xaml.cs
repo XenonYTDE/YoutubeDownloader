@@ -162,6 +162,10 @@ namespace YoutubeDownloader
                 titleBar.ButtonHoverForegroundColor = Colors.Black;
                 titleBar.ButtonPressedForegroundColor = Colors.Black;
                 titleBar.ForegroundColor = Colors.Black;
+                titleBar.BackgroundColor = Colors.White;
+                titleBar.ButtonBackgroundColor = Colors.White;
+                titleBar.ButtonHoverBackgroundColor = Colors.LightGray;
+                titleBar.ButtonPressedBackgroundColor = Colors.Gray;
             }
             else
             {
@@ -169,6 +173,10 @@ namespace YoutubeDownloader
                 titleBar.ButtonHoverForegroundColor = Colors.White;
                 titleBar.ButtonPressedForegroundColor = Colors.White;
                 titleBar.ForegroundColor = Colors.White;
+                titleBar.BackgroundColor = Colors.Black;
+                titleBar.ButtonBackgroundColor = Colors.Black;
+                titleBar.ButtonHoverBackgroundColor = Colors.DarkGray;
+                titleBar.ButtonPressedBackgroundColor = Colors.Gray;
             }
         }
 
@@ -246,10 +254,21 @@ namespace YoutubeDownloader
 
                 if (_settings.DownloadThumbnails)
                 {
-                    var thumbnailUrl = videoInfo.Data.Thumbnails?.LastOrDefault()?.Url;
-                    if (!string.IsNullOrEmpty(thumbnailUrl))
+                    try
                     {
-                        await DownloadThumbnail(thumbnailUrl, safeTitle, outputPath);
+                        var thumbnailUrl = videoInfo.Data.Thumbnails?.OrderByDescending(t => t.Resolution)
+                                                            .FirstOrDefault()?.Url;
+                        if (!string.IsNullOrEmpty(thumbnailUrl))
+                        {
+                            UpdateStatus("Downloading thumbnail...");
+                            await DownloadThumbnail(thumbnailUrl, safeTitle, outputPath);
+                            UpdateStatus("Thumbnail downloaded");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Thumbnail download");
+                        UpdateStatus("Failed to download thumbnail");
                     }
                 }
 
@@ -1028,6 +1047,10 @@ $Shortcut.Save()";
                         titleBar.ButtonHoverForegroundColor = Colors.Black;
                         titleBar.ButtonPressedForegroundColor = Colors.Black;
                         titleBar.ForegroundColor = Colors.Black;
+                        titleBar.BackgroundColor = Colors.White;
+                        titleBar.ButtonBackgroundColor = Colors.White;
+                        titleBar.ButtonHoverBackgroundColor = Colors.LightGray;
+                        titleBar.ButtonPressedBackgroundColor = Colors.Gray;
                     }
                     else // Dark or System (when system is in dark mode)
                     {
@@ -1035,6 +1058,10 @@ $Shortcut.Save()";
                         titleBar.ButtonHoverForegroundColor = Colors.White;
                         titleBar.ButtonPressedForegroundColor = Colors.White;
                         titleBar.ForegroundColor = Colors.White;
+                        titleBar.BackgroundColor = Colors.Black;
+                        titleBar.ButtonBackgroundColor = Colors.Black;
+                        titleBar.ButtonHoverBackgroundColor = Colors.DarkGray;
+                        titleBar.ButtonPressedBackgroundColor = Colors.Gray;
                     }
                 }
 
