@@ -28,16 +28,6 @@
                        Text="1.0.6"
                        Opacity="0.7"
                        Style="{StaticResource CaptionTextBlockStyle}"/>
-            <Button x:Name="ThemeToggleButton"
-                    Click="ThemeToggleButton_Click"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Padding="8,4"
-                    Margin="8,0,0,0">
-                <FontIcon x:Name="ThemeIcon" 
-                          FontFamily="Segoe Fluent Icons" 
-                          Glyph="&#xE793;"/>
-            </Button>
         </StackPanel>
 
         <!-- Main Content -->
@@ -53,14 +43,18 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
                         <!-- URL Input -->
                         <TextBox x:Name="UrlTextBox" 
-                                PlaceholderText="Enter YouTube URL"
+                                PlaceholderText="Enter YouTube URL or drag video link here"
                                 Grid.Row="0"
                                 Margin="0,0,0,20"
+                                AllowDrop="True"
+                                Drop="UrlTextBox_Drop"
+                                DragOver="UrlTextBox_DragOver"
                                 TextChanged="UrlTextBox_TextChanged"/>
 
                         <!-- Thumbnail and Video Title -->
@@ -140,14 +134,27 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             
                             <ProgressBar x:Name="DownloadProgress" 
                                         Height="4"
                                         Margin="0,0,0,8"/>
                             
+                            <StackPanel Grid.Row="1" 
+                                        Orientation="Horizontal" 
+                                        Spacing="16"
+                                        Margin="0,0,0,4">
+                                <TextBlock x:Name="SpeedText"
+                                          Style="{StaticResource CaptionTextBlockStyle}"
+                                          Opacity="0.8"/>
+                                <TextBlock x:Name="TimeRemainingText"
+                                          Style="{StaticResource CaptionTextBlockStyle}"
+                                          Opacity="0.8"/>
+                            </StackPanel>
+                            
                             <TextBlock x:Name="StatusText"
-                                      Grid.Row="1"
+                                      Grid.Row="2"
                                       TextWrapping="Wrap"
                                       Style="{StaticResource BodyTextBlockStyle}"
                                       Opacity="0.8"/>
@@ -252,25 +259,8 @@
                                 </Grid>
                             </StackPanel>
 
-                            <!-- Theme -->
-                            <StackPanel>
-                                <TextBlock Text="Theme" 
-                                         Style="{StaticResource BodyTextBlockStyle}"/>
-                                <ComboBox x:Name="ThemeComboBox" 
-                                         Margin="0,8,0,0"
-                                         SelectionChanged="ThemeComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="System"/>
-                                    <ComboBoxItem Content="Light"/>
-                                    <ComboBoxItem Content="Dark"/>
-                                </ComboBox>
-                            </StackPanel>
-
                             <!-- Other Settings -->
                             <StackPanel>
-                                <CheckBox x:Name="MinimizeToTrayCheckBox" 
-                                         Content="Minimize to System Tray"
-                                         Checked="Setting_Changed"
-                                         Unchecked="Setting_Changed"/>
                                 <CheckBox x:Name="RememberPositionCheckBox" 
                                          Content="Remember Window Position"
                                          Checked="Setting_Changed"

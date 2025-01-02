@@ -18,6 +18,7 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
 using YoutubeDownloader;
+using System.Runtime.InteropServices;
 
 namespace YoutubeDownloader
 {
@@ -30,11 +31,14 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.0"; // Major update from 1.0.10
+        private readonly string _currentVersion = "1.1.0"; // Added QoL improvements
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
         private new AppWindow AppWindow { get; set; } = null!;
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
         public MainWindow()
         {
@@ -43,6 +47,7 @@ namespace YoutubeDownloader
                 Logger.Log("Starting application initialization");
                 
                 InitializeComponent();
+                
                 Logger.Log("InitializeComponent completed");
                 
                 Title = "YouTube Downloader";
@@ -86,10 +91,7 @@ namespace YoutubeDownloader
                             var titleBar = AppWindow.TitleBar;
                             titleBar.ExtendsContentIntoTitleBar = false;
                             titleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;
-                            
-                            var theme = _settings.Theme;
-                            UpdateTitleBarColors(theme);
-                            Logger.Log($"Title bar configured with theme: {theme}");
+                            Logger.Log("Title bar configured");
                         }
                         else
                         {
@@ -151,35 +153,6 @@ namespace YoutubeDownloader
             }
         }
 
-        private void UpdateTitleBarColors(string theme)
-        {
-            if (AppWindow?.TitleBar == null) return;
-            
-            var titleBar = AppWindow.TitleBar;
-            if (theme == "Light")
-            {
-                titleBar.ButtonForegroundColor = Colors.Black;
-                titleBar.ButtonHoverForegroundColor = Colors.Black;
-                titleBar.ButtonPressedForegroundColor = Colors.Black;
-                titleBar.ForegroundColor = Colors.Black;
-                titleBar.BackgroundColor = Colors.White;
-                titleBar.ButtonBackgroundColor = Colors.White;
-                titleBar.ButtonHoverBackgroundColor = Colors.LightGray;
-                titleBar.ButtonPressedBackgroundColor = Colors.Gray;
-            }
-            else
-            {
-                titleBar.ButtonForegroundColor = Colors.White;
-                titleBar.ButtonHoverForegroundColor = Colors.White;
-                titleBar.ButtonPressedForegroundColor = Colors.White;
-                titleBar.ForegroundColor = Colors.White;
-                titleBar.BackgroundColor = Colors.Black;
-                titleBar.ButtonBackgroundColor = Colors.Black;
-                titleBar.ButtonHoverBackgroundColor = Colors.DarkGray;
-                titleBar.ButtonPressedBackgroundColor = Colors.Gray;
-            }
-        }
-
         private void InitializeQualityOptions()
         {
             QualityComboBox.Items.Add("Best");
@@ -233,7 +206,55 @@ namespace YoutubeDownloader
                 {
                     DispatcherQueue.TryEnqueue(() =>
                     {
+                        if (p == null) return;
+
+                        // Update progress bar
                         DownloadProgress.Value = p.Progress * 100;
+                        
+                        // Update speed
+                        double downloadSpeed;
+                        if (double.TryParse(p.DownloadSpeed?.ToString(), out downloadSpeed) && downloadSpeed > 0)
+                        {
+                            if (downloadSpeed >= 1024 * 1024)
+                            {
+                                SpeedText.Text = $"{downloadSpeed / (1024.0 * 1024.0):F1} MB/s";
+                            }
+                            else if (downloadSpeed >= 1024)
+                            {
+                                SpeedText.Text = $"{downloadSpeed / 1024.0:F1} KB/s";
+                            }
+                            else
+                            {
+                                SpeedText.Text = $"{downloadSpeed:F0} B/s";
+                            }
+                        }
+                        else
+                        {
+                            SpeedText.Text = string.Empty;
+                        }
+                        
+                        // Update ETA
+                        double eta;
+                        if (double.TryParse(p.ETA?.ToString(), out eta) && eta > 0)
+                        {
+                            if (eta >= 3600)
+                            {
+                                TimeRemainingText.Text = $"{(int)(eta / 3600)}h {(int)((eta % 3600) / 60)}m remaining";
+                            }
+                            else if (eta >= 60)
+                            {
+                                TimeRemainingText.Text = $"{(int)(eta / 60)}m {(int)(eta % 60)}s remaining";
+                            }
+                            else
+                            {
+                                TimeRemainingText.Text = $"{(int)eta}s remaining";
+                            }
+                        }
+                        else
+                        {
+                            TimeRemainingText.Text = string.Empty;
+                        }
+                        
                         UpdateStatus($"Downloading: {(p.Progress * 100):F1}%");
                     });
                 });
@@ -683,13 +704,9 @@ namespace YoutubeDownloader
 
         private void ClearPreview()
         {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                ThumbnailImage.Source = null;
-                ThumbnailImage.Visibility = Visibility.Collapsed;
-                VideoTitleText.Text = string.Empty;
-                VideoTitleText.Visibility = Visibility.Collapsed;
-            });
+            VideoTitleText.Visibility = Visibility.Collapsed;
+            ThumbnailImage.Visibility = Visibility.Collapsed;
+            ClearProgressInfo();
         }
 
         private async void UrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -958,17 +975,13 @@ $Shortcut.Save()";
             // Set UI elements from settings
             DefaultLocationBox.Text = _settings.DefaultDownloadPath;
             DefaultQualityComboBox.SelectedItem = _settings.DefaultQuality;
-            MinimizeToTrayCheckBox.IsChecked = _settings.MinimizeToTray;
             RememberPositionCheckBox.IsChecked = _settings.RememberWindowPosition;
             AutoUpdateDepsCheckBox.IsChecked = _settings.AutoUpdateDependencies;
             DownloadThumbnailsCheckBox.IsChecked = _settings.DownloadThumbnails;
             DownloadSubtitlesCheckBox.IsChecked = _settings.DownloadSubtitles;
-            ThemeComboBox.SelectedItem = _settings.Theme;
 
-            // Apply theme
-            ApplyTheme(_settings.Theme);
-
-            UpdateThemeIcon(_settings.Theme);
+            // Sync download quality with default quality
+            QualityComboBox.SelectedItem = _settings.DefaultQuality;
         }
 
         private Settings LoadSettings()
@@ -1005,7 +1018,6 @@ $Shortcut.Save()";
         {
             if (!_isInitialized) return;
 
-            _settings.MinimizeToTray = MinimizeToTrayCheckBox.IsChecked ?? false;
             _settings.RememberWindowPosition = RememberPositionCheckBox.IsChecked ?? false;
             _settings.AutoUpdateDependencies = AutoUpdateDepsCheckBox.IsChecked ?? false;
             _settings.DownloadThumbnails = DownloadThumbnailsCheckBox.IsChecked ?? false;
@@ -1013,62 +1025,6 @@ $Shortcut.Save()";
             _settings.DefaultQuality = DefaultQualityComboBox.SelectedItem?.ToString() ?? "Best";
             
             SaveSettings();
-        }
-
-        private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var theme = ThemeComboBox.SelectedItem?.ToString() ?? "System";
-            _settings.Theme = theme;
-            ApplyTheme(theme);
-            SaveSettings();
-        }
-
-        private void ApplyTheme(string theme)
-        {
-            if (Content is FrameworkElement rootElement)
-            {
-                // Set the app's theme
-                rootElement.RequestedTheme = theme switch
-                {
-                    "Light" => ElementTheme.Light,
-                    "Dark" => ElementTheme.Dark,
-                    _ => ElementTheme.Default
-                };
-
-                // Update title bar colors
-                if (AppWindowTitleBar.IsCustomizationSupported())
-                {
-                    var titleBar = AppWindow.TitleBar;
-                    if (theme == "Light")
-                    {
-                        titleBar.ButtonForegroundColor = Colors.Black;
-                        titleBar.ButtonHoverForegroundColor = Colors.Black;
-                        titleBar.ButtonPressedForegroundColor = Colors.Black;
-                        titleBar.ForegroundColor = Colors.Black;
-                        titleBar.BackgroundColor = Colors.White;
-                        titleBar.ButtonBackgroundColor = Colors.White;
-                        titleBar.ButtonHoverBackgroundColor = Colors.LightGray;
-                        titleBar.ButtonPressedBackgroundColor = Colors.Gray;
-                    }
-                    else // Dark or System (when system is in dark mode)
-                    {
-                        titleBar.ButtonForegroundColor = Colors.White;
-                        titleBar.ButtonHoverForegroundColor = Colors.White;
-                        titleBar.ButtonPressedForegroundColor = Colors.White;
-                        titleBar.ForegroundColor = Colors.White;
-                        titleBar.BackgroundColor = Colors.Black;
-                        titleBar.ButtonBackgroundColor = Colors.Black;
-                        titleBar.ButtonHoverBackgroundColor = Colors.DarkGray;
-                        titleBar.ButtonPressedBackgroundColor = Colors.Gray;
-                    }
-                }
-
-                // Save the theme preference
-                _settings.Theme = theme;
-                SaveSettings();
-            }
         }
 
         private async void DefaultLocationBrowse_Click(object sender, RoutedEventArgs e)
@@ -1110,23 +1066,29 @@ $Shortcut.Save()";
             }
         }
 
-        private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        private void UrlTextBox_DragOver(object sender, DragEventArgs e)
         {
-            var currentTheme = _settings.Theme;
-            var newTheme = currentTheme switch
-            {
-                "Light" => "Dark",
-                "Dark" => "Light",
-                _ => "Light" // If system, start with light
-            };
-
-            ApplyTheme(newTheme);
-            UpdateThemeIcon(newTheme);
+            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
         }
 
-        private void UpdateThemeIcon(string theme)
+        private async void UrlTextBox_Drop(object sender, DragEventArgs e)
         {
-            ThemeIcon.Glyph = theme == "Light" ? "\uE793" : "\uE708";  // Sun/Moon icon
+            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+            {
+                var text = await e.DataView.GetTextAsync();
+                if (text != null && (text.Contains("youtube.com") || text.Contains("youtu.be")))
+                {
+                    UrlTextBox.Text = text;
+                }
+            }
+        }
+
+        private void ClearProgressInfo()
+        {
+            DownloadProgress.Value = 0;
+            SpeedText.Text = string.Empty;
+            TimeRemainingText.Text = string.Empty;
+            StatusText.Text = string.Empty;
         }
     }
 
