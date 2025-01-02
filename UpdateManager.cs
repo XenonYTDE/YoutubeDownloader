@@ -14,7 +14,7 @@ namespace YoutubeDownloader
         private readonly string _dependenciesPath;
         private readonly HttpClient _httpClient;
         private const string UpdateScriptName = "update.ps1";  // Change to PowerShell script
-        private const string UpdaterUrl = "https://github.com/XenonYTDE/YoutubeDownloader/releases/latest/download/Updater.exe";
+        private const string UpdaterUrl = "https://github.com/XenonYTDE/YoutubeDownloader/releases/download/updater/Updater.exe";
 
         public UpdateManager(string currentVersion, string dependenciesPath)
         {
