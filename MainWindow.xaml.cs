@@ -69,6 +69,9 @@ namespace YoutubeDownloader
 
             _updateManager = new UpdateManager(_currentVersion, _dependenciesPath);
             _ = CheckForUpdatesAsync();
+
+            // Create Start Menu shortcut
+            CreateStartMenuShortcut();
         }
 
         private void InitializeQualityOptions()
@@ -725,6 +728,56 @@ namespace YoutubeDownloader
             {
                 _downloadHistory.Clear();
                 SaveDownloadHistory();
+            }
+        }
+
+        private void CreateStartMenuShortcut()
+        {
+            try
+            {
+                var startMenuPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
+                    "Programs",
+                    "YouTube Downloader.lnk"
+                );
+
+                if (!File.Exists(startMenuPath))
+                {
+                    var currentExePath = Process.GetCurrentProcess().MainModule?.FileName;
+                    if (currentExePath == null) return;
+
+                    var powershellScript = $@"
+$WshShell = New-Object -comObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut('{startMenuPath}')
+$Shortcut.TargetPath = '{currentExePath}'
+$Shortcut.WorkingDirectory = '{Path.GetDirectoryName(currentExePath)}'
+$Shortcut.Description = 'YouTube Video Downloader'
+$Shortcut.IconLocation = '{currentExePath}'
+$Shortcut.Save()";
+
+                    var scriptPath = Path.Combine(_dependenciesPath, "createshortcut.ps1");
+                    File.WriteAllText(scriptPath, powershellScript);
+
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                        UseShellExecute = true,
+                        CreateNoWindow = true,
+                        Verb = "runas"
+                    };
+
+                    using var process = Process.Start(startInfo);
+                    process?.WaitForExit();
+
+                    try { File.Delete(scriptPath); } catch { }
+                    
+                    Logger.Log($"Created Start Menu shortcut at: {startMenuPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "CreateStartMenuShortcut");
             }
         }
     }
