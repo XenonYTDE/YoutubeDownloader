@@ -23,43 +23,54 @@ namespace YoutubeDownloader
             try
             {
                 Logger.Log("Starting update check...");
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
+                var releases = await GetAllReleases();
                 
-                Logger.Log($"Checking URL: {_updateUrl}");
-                var response = await client.GetStringAsync(_updateUrl);
-                Logger.Log("Got response from GitHub");
-                
-                var releaseInfo = JsonSerializer.Deserialize<GitHubRelease>(response);
-                Logger.Log($"Parsed release info: {response}");
-
-                if (releaseInfo == null || string.IsNullOrEmpty(releaseInfo.TagName))
+                if (!releases.Any())
                 {
-                    Logger.Log("No release info found");
+                    Logger.Log("No releases found");
                     return null;
                 }
 
-                var latestVersion = releaseInfo.TagName.TrimStart('v');
-                Logger.Log($"Latest version: {latestVersion}, Current version: {_currentVersion}");
-                
                 var currentVersionParsed = Version.Parse(_currentVersion);
-                var latestVersionParsed = Version.Parse(latestVersion);
+                var missedReleases = new List<GitHubRelease>();
 
-                if (latestVersionParsed > currentVersionParsed)
+                foreach (var release in releases)
                 {
-                    var asset = releaseInfo.Assets.FirstOrDefault(a => a.Name.EndsWith(".exe"));
+                    if (string.IsNullOrEmpty(release.TagName)) continue;
+                    
+                    var releaseVersion = Version.Parse(release.TagName.TrimStart('v'));
+                    if (releaseVersion > currentVersionParsed)
+                    {
+                        missedReleases.Add(release);
+                    }
+                    else
+                    {
+                        break; // Stop once we reach current version
+                    }
+                }
+
+                if (missedReleases.Any())
+                {
+                    var latestRelease = missedReleases.First(); // Most recent release
+                    var asset = latestRelease.Assets.FirstOrDefault(a => a.Name.EndsWith(".exe"));
+                    
                     if (asset != null)
                     {
-                        Logger.Log($"Update available. Download URL: {asset.BrowserDownloadUrl}");
-                        return (true, latestVersion, asset.BrowserDownloadUrl, releaseInfo.Body);
+                        // Build cumulative patch notes
+                        var patchNotes = new System.Text.StringBuilder();
+                        foreach (var release in missedReleases)
+                        {
+                            patchNotes.AppendLine($"Version {release.TagName}:");
+                            patchNotes.AppendLine(release.Body ?? "No patch notes available.");
+                            patchNotes.AppendLine(); // Add blank line between versions
+                        }
+
+                        Logger.Log($"Updates available. Found {missedReleases.Count} missed version(s)");
+                        return (true, latestRelease.TagName.TrimStart('v'), asset.BrowserDownloadUrl, patchNotes.ToString());
                     }
-                    Logger.Log("No exe asset found in release");
-                }
-                else
-                {
-                    Logger.Log("No update needed");
                 }
 
+                Logger.Log("No updates needed");
                 return (false, string.Empty, string.Empty, null);
             }
             catch (Exception ex)
@@ -142,6 +153,24 @@ del ""%~f0""
             {
                 Logger.LogError(ex, "DownloadAndInstallUpdate");
                 return false;
+            }
+        }
+
+        private async Task<List<GitHubRelease>> GetAllReleases()
+        {
+            try
+            {
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("User-Agent", "YoutubeDownloader");
+                
+                // Use releases API instead of latest
+                var response = await client.GetStringAsync(_updateUrl.Replace("/latest", ""));
+                return JsonSerializer.Deserialize<List<GitHubRelease>>(response) ?? new List<GitHubRelease>();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "GetAllReleases");
+                return new List<GitHubRelease>();
             }
         }
     }
