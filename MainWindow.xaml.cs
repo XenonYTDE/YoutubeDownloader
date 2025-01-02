@@ -33,11 +33,19 @@ namespace YoutubeDownloader
         private readonly string _currentVersion = "1.1.0"; // Major update from 1.0.10
         private Settings _settings;
         private readonly string _settingsPath;
+        private bool _isInitialized;
 
         public MainWindow()
         {
             InitializeComponent();
             Title = "YouTube Downloader";
+            
+            // Setup dependencies path in AppData/Local
+            _dependenciesPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) ?? "",
+                "YoutubeDownloader"
+            );
+            Directory.CreateDirectory(_dependenciesPath);
             
             // Add settings initialization
             _settingsPath = Path.Combine(_dependenciesPath, "settings.json");
@@ -56,13 +64,6 @@ namespace YoutubeDownloader
             
             // Set size and position
             appWindow.Resize(new SizeInt32 { Width = 800, Height = 600 });
-            
-            // Setup dependencies path in AppData/Local
-            _dependenciesPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "YoutubeDownloader"
-            );
-            Directory.CreateDirectory(_dependenciesPath);
             
             // Initialize history
             _historyFilePath = Path.Combine(_dependenciesPath, "download_history.json");
@@ -84,6 +85,8 @@ namespace YoutubeDownloader
 
             // Create Start Menu shortcut
             CreateStartMenuShortcut();
+
+            _isInitialized = true;
         }
 
         private void InitializeQualityOptions()
@@ -156,6 +159,21 @@ namespace YoutubeDownloader
                     }
                 }
 
+                var options = new OptionSet();
+
+                if (_settings.DownloadThumbnails)
+                {
+                    // Download thumbnail logic here
+                }
+
+                if (_settings.DownloadSubtitles)
+                {
+                    options.WriteAutoSubs = true;
+                    options.SubLangs = "en";
+                    options.EmbedSubs = true;
+                    options.ConvertSubs = "srt";
+                }
+
                 if (isMP4)
                 {
                     string format = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
@@ -165,14 +183,11 @@ namespace YoutubeDownloader
                         format = $"bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/best[height<={quality}][ext=mp4]";
                     }
 
-                    var options = new OptionSet
-                    {
-                        Format = format,
-                        Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s"),
-                        RestrictFilenames = true,
-                        NoPlaylist = true,
-                        PreferFreeFormats = true
-                    };
+                    options.Format = format;
+                    options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
+                    options.RestrictFilenames = true;
+                    options.NoPlaylist = true;
+                    options.PreferFreeFormats = true;
 
                     var result = await _youtubeDl.RunVideoDownload(
                         url,
@@ -199,16 +214,13 @@ namespace YoutubeDownloader
                 }
                 else
                 {
-                    var options = new OptionSet
-                    {
-                        Format = "bestaudio/best",
-                        ExtractAudio = true,
-                        AudioFormat = AudioConversionFormat.Mp3,
-                        Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s"),
-                        RestrictFilenames = true,
-                        NoPlaylist = true,
-                        PreferFreeFormats = true
-                    };
+                    options.Format = "bestaudio/best";
+                    options.ExtractAudio = true;
+                    options.AudioFormat = AudioConversionFormat.Mp3;
+                    options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
+                    options.RestrictFilenames = true;
+                    options.NoPlaylist = true;
+                    options.PreferFreeFormats = true;
 
                     // First download as best audio
                     var result = await _youtubeDl.RunVideoDownload(
@@ -295,17 +307,6 @@ namespace YoutubeDownloader
                     {
                         await LoadThumbnail(videoInfo.Data.Thumbnails.Last().Url);
                     }
-                }
-
-                if (_settings.DownloadThumbnails)
-                {
-                    // Download thumbnail logic here
-                }
-
-                if (_settings.DownloadSubtitles)
-                {
-                    options.WriteAutoSub = true;
-                    options.SubFormat = "srt";
                 }
             }
             catch (Exception ex)
@@ -894,7 +895,7 @@ $Shortcut.Save()";
 
         private void Setting_Changed(object sender, RoutedEventArgs e)
         {
-            if (!IsLoaded) return; // Avoid saving during initialization
+            if (!_isInitialized) return;
 
             _settings.MinimizeToTray = MinimizeToTrayCheckBox.IsChecked ?? false;
             _settings.RememberWindowPosition = RememberPositionCheckBox.IsChecked ?? false;
@@ -908,7 +909,7 @@ $Shortcut.Save()";
 
         private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!IsLoaded) return;
+            if (!_isInitialized) return;
 
             var theme = ThemeComboBox.SelectedItem?.ToString() ?? "System";
             _settings.Theme = theme;
