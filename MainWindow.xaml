@@ -17,6 +17,19 @@
                  Style="{StaticResource TitleTextBlockStyle}"
                  Margin="20,20,20,10"/>
 
+        <StackPanel Orientation="Horizontal" 
+                    HorizontalAlignment="Right" 
+                    VerticalAlignment="Center" 
+                    Margin="0,20,20,10">
+            <TextBlock Text="Version " 
+                       Opacity="0.7"
+                       Style="{StaticResource CaptionTextBlockStyle}"/>
+            <TextBlock x:Name="VersionText" 
+                       Text="1.0.6"
+                       Opacity="0.7"
+                       Style="{StaticResource CaptionTextBlockStyle}"/>
+        </StackPanel>
+
         <!-- Main Content -->
         <TabView Grid.Row="1" x:Name="MainTabView">
             <TabView.TabItems>
