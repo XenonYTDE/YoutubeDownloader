@@ -10,6 +10,13 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
             <local:TypeToIconConverter x:Key="TypeToIconConverter"/>
+            <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <local:FormatToStyleConverter x:Key="FormatToStyleConverter"/>
+            
+            <!-- Add custom ComboBoxItem style -->
+            <Style x:Key="AccentComboBoxItemStyle" TargetType="ComboBoxItem">
+                <Setter Property="Foreground" Value="{ThemeResource SystemAccentColor}"/>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -1,11 +1,12 @@
 public class Settings
 {
     public string DefaultDownloadPath { get; set; } = string.Empty;
-    public string DefaultQuality { get; set; } = "Best";
     public bool RememberWindowPosition { get; set; } = true;
     public bool AutoUpdateDependencies { get; set; } = true;
-    public int MaxConcurrentDownloads { get; set; } = 1;
-    public bool DownloadThumbnails { get; set; } = false;
+    public bool DownloadThumbnails { get; set; } = true;
     public bool DownloadSubtitles { get; set; } = false;
-    public string FileNameTemplate { get; set; } = "%(title)s.%(ext)s";
+    public string DefaultVideoQuality { get; set; } = "1080p";
+    public string DefaultVideoFormat { get; set; } = "MP4";
+    public string DefaultAudioQuality { get; set; } = "192 kbps";
+    public string DefaultAudioFormat { get; set; } = "MP3";
 } 

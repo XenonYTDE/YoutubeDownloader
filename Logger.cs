@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Text;
 
 namespace YoutubeDownloader
 {
@@ -22,19 +23,20 @@ namespace YoutubeDownloader
                     Directory.CreateDirectory(directory);
                 }
 
-                // Always clean the log file on startup
-                if (File.Exists(LogPath))
-                {
-                    File.Delete(LogPath);
-                }
+                // Start new session with separator
+                var sessionHeader = new StringBuilder();
+                sessionHeader.AppendLine("\n==================================================");
+                sessionHeader.AppendLine($"=== New Session Started at {DateTime.Now} ===");
+                sessionHeader.AppendLine($"YouTube Downloader Version: {GetAppVersion()}");
+                sessionHeader.AppendLine($"OS Version: {Environment.OSVersion}");
+                sessionHeader.AppendLine($"64-bit OS: {Environment.Is64BitOperatingSystem}");
+                sessionHeader.AppendLine($".NET Runtime: {Environment.Version}");
+                sessionHeader.AppendLine($"Machine Name: {Environment.MachineName}");
+                sessionHeader.AppendLine($"Processor Count: {Environment.ProcessorCount}");
+                sessionHeader.AppendLine($"System Memory: {GetSystemMemory()}");
+                sessionHeader.AppendLine("==================================================\n");
 
-                // Start new session
-                File.AppendAllText(LogPath, $"=== New Session Started at {DateTime.Now} ===\n");
-                File.AppendAllText(LogPath, $"YouTube Downloader Version: {GetAppVersion()}\n");
-                File.AppendAllText(LogPath, $"OS Version: {Environment.OSVersion}\n");
-                File.AppendAllText(LogPath, $"64-bit OS: {Environment.Is64BitOperatingSystem}\n");
-                File.AppendAllText(LogPath, $".NET Runtime: {Environment.Version}\n");
-                File.AppendAllText(LogPath, "=====================================\n\n");
+                File.AppendAllText(LogPath, sessionHeader.ToString());
             }
             catch { }
         }
@@ -53,43 +55,82 @@ namespace YoutubeDownloader
             }
         }
 
-        public static void Log(string message, bool isProgress = false)
+        private static string GetSystemMemory()
         {
             try
             {
-                // Skip progress messages if they're too frequent
-                if (isProgress && message.StartsWith("Progress update received:"))
-                {
-                    return;
-                }
+                var totalMemory = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+                return $"{totalMemory / (1024 * 1024 * 1024.0):F1} GB";
+            }
+            catch
+            {
+                return "Unknown";
+            }
+        }
 
-                var logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] INFO: {message}";
-                File.AppendAllText(LogPath, logMessage + "\n");
-                Debug.WriteLine(logMessage);
+        public static void Log(string message, bool isDebug = false)
+        {
+            try
+            {
+                var threadId = Environment.CurrentManagedThreadId;
+                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+                var logMessage = $"[{timestamp}][Thread {threadId}] {message}";
+                
+                File.AppendAllText(LogPath, logMessage + Environment.NewLine);
+                if (!isDebug)
+                {
+                    Debug.WriteLine(logMessage);
+                }
             }
             catch { }
         }
 
+        public static void LogUI(string component, string action, string details)
+        {
+            Log($"UI: {component} - {action} - {details}");
+        }
+
         public static void LogError(Exception ex, string context)
         {
-            try
+            var sb = new StringBuilder();
+            sb.AppendLine($"ERROR in {context}:");
+            sb.AppendLine($"Message: {ex.Message}");
+            sb.AppendLine($"Stack: {ex.StackTrace}");
+            
+            if (ex.InnerException != null)
             {
-                var logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR in {context}:\n" +
-                                $"Message: {ex.Message}\n" +
-                                $"Stack Trace: {ex.StackTrace}\n" +
-                                $"Source: {ex.Source}\n" +
-                                $"Target Site: {ex.TargetSite}\n";
-                
-                if (ex.InnerException != null)
-                {
-                    logMessage += $"Inner Exception: {ex.InnerException.Message}\n" +
-                                 $"Inner Stack Trace: {ex.InnerException.StackTrace}\n";
-                }
-
-                File.AppendAllText(LogPath, logMessage + "\n");
-                Debug.WriteLine(logMessage);
+                sb.AppendLine("Inner Exception:");
+                sb.AppendLine($"Message: {ex.InnerException.Message}");
+                sb.AppendLine($"Stack: {ex.InnerException.StackTrace}");
             }
-            catch { }
+
+            sb.AppendLine($"Source: {ex.Source}");
+            sb.AppendLine($"Target Site: {ex.TargetSite}");
+            
+            Log(sb.ToString());
+        }
+
+        public static void LogDownload(string url, string format, string quality, bool isAudio)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Download Started:");
+            sb.AppendLine($"URL: {url}");
+            sb.AppendLine($"Type: {(isAudio ? "Audio" : "Video")}");
+            sb.AppendLine($"Format: {format}");
+            sb.AppendLine($"Quality: {quality}");
+            
+            Log(sb.ToString());
+        }
+
+        public static void LogSettings(string setting, string oldValue, string newValue)
+        {
+            Log($"Setting Changed - {setting}: {oldValue} -> {newValue}");
+        }
+
+        public static void LogMemory()
+        {
+            var memory = GC.GetTotalMemory(false) / (1024 * 1024.0);
+            Log($"Memory Usage: {memory:F2} MB", true);
         }
     }
 } 

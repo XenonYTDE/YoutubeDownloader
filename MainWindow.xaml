@@ -31,7 +31,14 @@
         </StackPanel>
 
         <!-- Main Content -->
-        <TabView Grid.Row="1" x:Name="MainTabView">
+        <TabView Grid.Row="1" 
+                 x:Name="MainTabView" 
+                 IsAddTabButtonVisible="False">
+            <TabView.Resources>
+                <Style TargetType="TabViewItem">
+                    <Setter Property="IsClosable" Value="False"/>
+                </Style>
+            </TabView.Resources>
             <TabView.TabItems>
                 <!-- Download Tab -->
                 <TabViewItem Header="Download" IsSelected="True">
@@ -106,37 +113,84 @@
                                     Orientation="Horizontal" 
                                     Spacing="10"
                                     Margin="0,0,0,20">
+                            
+                            <!-- Download Buttons -->
                             <Button x:Name="DownloadMP4Button" 
                                     Click="DownloadMP4Button_Click"
-                                    Style="{StaticResource AccentButtonStyle}"
-                                    ToolTipService.ToolTip="Download the video in MP4 format">
+                                    ToolTipService.ToolTip="Download the video">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE714;"/>
-                                    <TextBlock Text="Download MP4"/>
+                                    <TextBlock Text="Download Video"/>
                                 </StackPanel>
                             </Button>
+                            
                             <Button x:Name="DownloadMP3Button" 
                                     Click="DownloadMP3Button_Click"
-                                    ToolTipService.ToolTip="Download the audio in MP3 format">
+                                    ToolTipService.ToolTip="Download the audio">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D6;"/>
                                     <TextBlock Text="Download MP3"/>
                                 </StackPanel>
                             </Button>
-                            <ComboBox x:Name="QualityComboBox" 
-                                     PlaceholderText="Select Quality"
-                                     MinWidth="150"/>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Format:" 
-                                          VerticalAlignment="Center"/>
-                                <ComboBox x:Name="OutputFormatComboBox" 
-                                         Width="100" 
-                                         SelectedIndex="0"
-                                         ToolTipService.ToolTip="Select output video format">
-                                    <ComboBoxItem Content="mp4"/>
-                                    <ComboBoxItem Content="mov"/>
-                                    <ComboBoxItem Content="mkv"/>
-                                </ComboBox>
+
+                            <!-- Video Controls -->
+                            <StackPanel x:Name="VideoControlsPanel"
+                                        Orientation="Horizontal"
+                                        Spacing="10">
+                                <ComboBox x:Name="QualityComboBox" 
+                                          PlaceholderText="Video Quality"
+                                          MinWidth="120"/>
+
+                                <StackPanel x:Name="FormatPanel" 
+                                           Orientation="Horizontal" 
+                                           Spacing="8">
+                                    <TextBlock Text="Format:" 
+                                              VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="OutputFormatComboBox" 
+                                             Width="100" 
+                                             SelectedIndex="0">
+                                        <ComboBoxItem Content="MP4"/>
+                                        <ComboBoxItem Content="MOV"/>
+                                        <ComboBoxItem Content="MKV"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Audio Controls -->
+                            <StackPanel x:Name="AudioControlsPanel"
+                                        Orientation="Horizontal"
+                                        Spacing="10"
+                                        Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal" 
+                                            Spacing="8">
+                                    <TextBlock Text="Quality:" 
+                                              VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="AudioQualityComboBox"
+                                              PlaceholderText="Audio Quality"
+                                              MinWidth="120"
+                                              SelectedIndex="2">
+                                        <ComboBoxItem Content="320 kbps"/>
+                                        <ComboBoxItem Content="256 kbps"/>
+                                        <ComboBoxItem Content="192 kbps"/>
+                                        <ComboBoxItem Content="128 kbps"/>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" 
+                                            Spacing="8">
+                                    <TextBlock Text="Format:" 
+                                              VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="AudioFormatComboBox"
+                                              PlaceholderText="Audio Format"
+                                              MinWidth="120"
+                                              SelectedIndex="0">
+                                        <ComboBoxItem Content="MP3"/>
+                                        <ComboBoxItem Content="WAV"/>
+                                        <ComboBoxItem Content="AAC"/>
+                                        <ComboBoxItem Content="M4A"/>
+                                        <ComboBoxItem Content="FLAC"/>
+                                    </ComboBox>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
 
@@ -310,6 +364,41 @@
                                          Content="Download Subtitles (when available)"
                                          Checked="Setting_Changed"
                                          Unchecked="Setting_Changed"/>
+                            </StackPanel>
+
+                            <!-- In the Settings Tab, add audio settings -->
+                            <StackPanel>
+                                <TextBlock Text="Audio Settings" 
+                                          Style="{StaticResource SubtitleTextBlockStyle}"
+                                          Margin="0,16,0,0"/>
+                                          
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="Default Audio Format" 
+                                              Style="{StaticResource BodyTextBlockStyle}"/>
+                                    <ComboBox x:Name="DefaultAudioFormatComboBox" 
+                                             Margin="0,8,0,0"
+                                             SelectedIndex="0"
+                                             SelectionChanged="Setting_Changed">
+                                        <ComboBoxItem Content="MP3"/>
+                                        <ComboBoxItem Content="WAV"/>
+                                        <ComboBoxItem Content="AAC"/>
+                                        <ComboBoxItem Content="M4A"/>
+                                        <ComboBoxItem Content="FLAC"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                
+                                <StackPanel Margin="0,16,0,0">
+                                    <TextBlock Text="Default Audio Quality" 
+                                              Style="{StaticResource BodyTextBlockStyle}"/>
+                                    <ComboBox x:Name="DefaultAudioQualityComboBox" 
+                                             Margin="0,8,0,0"
+                                             SelectionChanged="Setting_Changed">
+                                        <ComboBoxItem Content="320 kbps"/>
+                                        <ComboBoxItem Content="256 kbps"/>
+                                        <ComboBoxItem Content="192 kbps"/>
+                                        <ComboBoxItem Content="128 kbps"/>
+                                    </ComboBox>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

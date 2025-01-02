@@ -21,6 +21,7 @@ using YoutubeDownloader;
 using System.Runtime.InteropServices;
 using System.Threading;
 using FFMpegCore;
+using System.Text;
 
 namespace YoutubeDownloader
 {
@@ -33,13 +34,14 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.2"; // Added QoL improvements
+        private readonly string _currentVersion = "1.1.3"; // Added QoL improvements
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
         private new AppWindow AppWindow { get; set; } = null!;
         private DateTime _downloadStartTime;
         private double _lastProgress;
+        private bool _isMP3Mode = false;
 
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -167,16 +169,104 @@ namespace YoutubeDownloader
                 Logger.LogError(ex, "MainWindow constructor");
                 throw; // Re-throw to see the error in Visual Studio
             }
+
+            var ffmpegPath = Path.Combine(_dependenciesPath, "ffmpeg.exe");
+            if (!File.Exists(ffmpegPath))
+            {
+                Logger.Log($"FFmpeg not found at: {ffmpegPath}");
+            }
+            else
+            {
+                Logger.Log($"FFmpeg found at: {ffmpegPath}");
+            }
         }
 
         private void InitializeQualityOptions()
         {
-            QualityComboBox.Items.Add("Best");
-            QualityComboBox.Items.Add("1080p");
-            QualityComboBox.Items.Add("720p");
-            QualityComboBox.Items.Add("480p");
-            QualityComboBox.Items.Add("360p");
-            QualityComboBox.SelectedIndex = 0;
+            try
+            {
+                Logger.Log("Initializing quality options...");
+                
+                // Video quality options
+                QualityComboBox.Items.Add("Best");
+                QualityComboBox.Items.Add("1080p");
+                QualityComboBox.Items.Add("720p");
+                QualityComboBox.Items.Add("480p");
+                QualityComboBox.Items.Add("360p");
+                
+                // Set default video quality from settings
+                var defaultQualityItem = QualityComboBox.Items.Cast<string>()
+                    .FirstOrDefault(x => x == _settings.DefaultVideoQuality) ?? "Best";
+                QualityComboBox.SelectedIndex = QualityComboBox.Items.IndexOf(defaultQualityItem);
+                
+                Logger.Log($"Video quality set to: {defaultQualityItem}");
+
+                // Set default video format
+                var defaultFormatItem = OutputFormatComboBox.Items.Cast<ComboBoxItem>()
+                    .FirstOrDefault(x => x.Content.ToString() == _settings.DefaultVideoFormat);
+                if (defaultFormatItem != null)
+                {
+                    OutputFormatComboBox.SelectedItem = defaultFormatItem;
+                }
+
+                // Audio quality options
+                var defaultAudioQuality = _settings.DefaultAudioQuality;
+                var audioQualityIndex = AudioQualityComboBox.Items.Cast<ComboBoxItem>()
+                    .ToList()
+                    .FindIndex(x => x.Content.ToString() == defaultAudioQuality);
+                AudioQualityComboBox.SelectedIndex = audioQualityIndex != -1 ? audioQualityIndex : 2;
+                
+                Logger.Log($"Audio quality set to: {defaultAudioQuality}");
+
+                // Set default audio format
+                var defaultAudioFormat = _settings.DefaultAudioFormat;
+                var audioFormatIndex = AudioFormatComboBox.Items.Cast<ComboBoxItem>()
+                    .ToList()
+                    .FindIndex(x => x.Content.ToString() == defaultAudioFormat);
+                AudioFormatComboBox.SelectedIndex = audioFormatIndex != -1 ? audioFormatIndex : 0;
+                
+                Logger.Log($"Audio format set to: {defaultAudioFormat}");
+
+                // Set initial state for video mode
+                FormatPanel.Visibility = Visibility.Visible;
+                QualityComboBox.Visibility = Visibility.Visible;
+                AudioControlsPanel.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "InitializeQualityOptions");
+            }
+        }
+
+        private void LogControlHierarchy()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("Control Hierarchy:");
+                LogControl(AudioControlsPanel, sb, 0);
+                Logger.Log(sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "LogControlHierarchy");
+            }
+        }
+
+        private void LogControl(UIElement element, StringBuilder sb, int depth)
+        {
+            if (element == null) return;
+
+            var indent = new string(' ', depth * 2);
+            sb.AppendLine($"{indent}+ {element.GetType().Name} - Visibility: {element.Visibility}");
+
+            if (element is Panel panel)
+            {
+                foreach (UIElement child in panel.Children)
+                {
+                    LogControl(child, sb, depth + 1);
+                }
+            }
         }
 
         private async Task DownloadVideo(bool isMP4)
@@ -364,10 +454,42 @@ namespace YoutubeDownloader
                 }
                 else
                 {
-                    options.Format = "bestaudio/best";
+                    // For audio downloads
+                    options.Format = "bestaudio[ext=m4a]/bestaudio/best"; // Prefer m4a source for best quality
                     options.ExtractAudio = true;
-                    options.AudioFormat = AudioConversionFormat.Mp3;
-                    options.AudioQuality = 192;
+                    
+                    // Get selected audio format
+                    var selectedFormat = (AudioFormatComboBox.SelectedItem as ComboBoxItem)?.Content.ToString()?.ToLower() ?? "mp3";
+                    options.AudioFormat = selectedFormat switch
+                    {
+                        "wav" => AudioConversionFormat.Wav,
+                        "aac" => AudioConversionFormat.Aac,
+                        "m4a" => AudioConversionFormat.M4a,
+                        "flac" => AudioConversionFormat.Flac,
+                        _ => AudioConversionFormat.Mp3
+                    };
+                    
+                    // Get selected audio quality
+                    var selectedQuality = (AudioQualityComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+                    var audioBitrate = selectedQuality?.Replace(" kbps", "") ?? "192";
+                    
+                    options.AudioQuality = (byte)0;  // Best quality for initial download
+                    options.AddCustomOption("--extract-audio", true);
+                    options.AddCustomOption("--audio-format", selectedFormat);
+                    
+                    // Apply quality settings based on format
+                    switch (selectedFormat)
+                    {
+                        case "wav":
+                        case "flac":
+                            // For lossless formats, don't set bitrate
+                            options.AddCustomOption("--postprocessor-args", "-ar 44100 -ac 2");
+                            break;
+                        default:
+                            // For lossy formats, set bitrate
+                            options.AddCustomOption("--postprocessor-args", $"-ar 44100 -ac 2 -b:a {audioBitrate}k");
+                            break;
+                    }
                 }
 
                 options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
@@ -395,14 +517,53 @@ namespace YoutubeDownloader
                     var movPath = Path.ChangeExtension(result.Data, ".mov");
                     UpdateStatus("Converting to MOV format...");
                     
-                    var ffmpeg = new FFMpegCore.FFMpeg();
-                    await Task.Run(() => ffmpeg.Convert(new FFMpegCore.Arguments.InputArguments(result.Data),
-                                                      new FFMpegCore.Arguments.OutputArguments(movPath)));
-                    
-                    // Delete the original MKV file
-                    File.Delete(result.Data);
-                    result.Data = movPath;
-                    UpdateStatus("Conversion complete");
+                    try
+                    {
+                        // Set FFmpeg binary path
+                        GlobalFFOptions.Configure(new FFOptions 
+                        { 
+                            BinaryFolder = _dependenciesPath,
+                            TemporaryFilesFolder = Path.Combine(_dependenciesPath, "temp")
+                        });
+
+                        Logger.Log($"Starting MOV conversion from: {result.Data}");
+                        Logger.Log($"Converting to: {movPath}");
+
+                        // Use FFMpegCore's static methods with transcoding
+                        await FFMpegArguments
+                            .FromFileInput(result.Data)
+                            .OutputToFile(movPath, true, options => options
+                                .WithVideoCodec("h264")        // Convert to H.264
+                                .WithAudioCodec("aac")         // Convert to AAC
+                                .WithConstantRateFactor(23)    // Maintain good quality
+                                .WithFastStart())
+                            .ProcessAsynchronously();
+
+                        // Verify the conversion
+                        if (File.Exists(movPath) && new FileInfo(movPath).Length > 0)
+                        {
+                            File.Delete(result.Data);
+                            var newResult = new RunResult<string>(true, new[] { movPath }, movPath);
+                            result = newResult;
+                            UpdateStatus("Conversion complete");
+                            Logger.Log("MOV conversion successful");
+                        }
+                        else
+                        {
+                            throw new Exception("Converted file is empty or does not exist");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "MOV Conversion");
+                        UpdateStatus("Failed to convert to MOV format");
+                        
+                        // Clean up empty MOV file if it exists
+                        if (File.Exists(movPath))
+                        {
+                            try { File.Delete(movPath); } catch { }
+                        }
+                    }
                 }
 
                 if (result.Success && File.Exists(result.Data))
@@ -485,26 +646,91 @@ namespace YoutubeDownloader
             }
         }
 
-        private async void DownloadMP4Button_Click(object sender, RoutedEventArgs e)
-        {
-            if (_isDownloading)
-            {
-                UpdateStatus("A download is already in progress");
-                return;
-            }
-
-            await DownloadVideo(true);
-        }
-
         private async void DownloadMP3Button_Click(object sender, RoutedEventArgs e)
         {
-            if (_isDownloading)
+            try
             {
-                UpdateStatus("A download is already in progress");
-                return;
-            }
+                Logger.LogUI("AudioControls", "ShowControls", "Starting MP3 mode");
+                Logger.LogMemory();
+                LogControlHierarchy();  // Log the control hierarchy
+                
+                if (_isDownloading)
+                {
+                    UpdateStatus("A download is already in progress");
+                    return;
+                }
 
-            await DownloadVideo(false);
+                _isMP3Mode = true;
+                
+                Logger.LogUI("AudioControlsPanel", "Visibility", 
+                    $"Before: {AudioControlsPanel.Visibility}, Setting to Visible");
+                AudioControlsPanel.Visibility = Visibility.Visible;
+                Logger.LogUI("AudioControlsPanel", "Visibility", 
+                    $"After: {AudioControlsPanel.Visibility}");
+                
+                // Log the state of each control
+                Logger.LogUI("Controls", "State", $@"
+AudioControlsPanel: {AudioControlsPanel?.Visibility}
+AudioQualityComboBox: {AudioQualityComboBox?.Visibility}
+AudioFormatComboBox: {AudioFormatComboBox?.Visibility}
+FormatPanel: {FormatPanel?.Visibility}
+QualityComboBox: {QualityComboBox?.Visibility}
+");
+
+                var selectedQuality = (AudioQualityComboBox?.SelectedItem as ComboBoxItem)?.Content.ToString();
+                var selectedFormat = (AudioFormatComboBox?.SelectedItem as ComboBoxItem)?.Content.ToString();
+                
+                Logger.LogUI("AudioControls", "State", 
+                    $"Quality: {selectedQuality ?? "null"}, Format: {selectedFormat ?? "null"}");
+                
+                FormatPanel.Visibility = Visibility.Collapsed;
+                QualityComboBox.Visibility = Visibility.Collapsed;
+
+                // Log the final state
+                LogControlHierarchy();
+                
+                await DownloadVideo(false);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "DownloadMP3Button_Click");
+                UpdateStatus("Error switching to MP3 mode");
+            }
+        }
+
+        private async void DownloadMP4Button_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Logger.LogUI("VideoControls", "ShowControls", "Starting Video mode");
+                
+                if (_isDownloading)
+                {
+                    UpdateStatus("A download is already in progress");
+                    return;
+                }
+
+                _isMP3Mode = false;
+                
+                Logger.LogUI("AudioControlsPanel", "Visibility", 
+                    $"Before: {AudioControlsPanel.Visibility}, Setting to Collapsed");
+                AudioControlsPanel.Visibility = Visibility.Collapsed;
+                
+                Logger.LogUI("VideoControls", "State", 
+                    $"Quality: {QualityComboBox?.SelectedItem}, Format: {OutputFormatComboBox?.SelectedItem}");
+                
+                Logger.LogUI("VideoControls", "Visibility", 
+                    $"FormatPanel: {FormatPanel.Visibility}, QualityComboBox: {QualityComboBox.Visibility}");
+                FormatPanel.Visibility = Visibility.Visible;
+                QualityComboBox.Visibility = Visibility.Visible;
+                
+                await DownloadVideo(true);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "DownloadMP4Button_Click");
+                UpdateStatus("Error switching to video mode");
+            }
         }
 
         private async void BrowseButton_Click(object sender, RoutedEventArgs e)
@@ -974,14 +1200,14 @@ $Shortcut.Save()";
             
             // Set UI elements from settings
             DefaultLocationBox.Text = _settings.DefaultDownloadPath;
-            DefaultQualityComboBox.SelectedItem = _settings.DefaultQuality;
+            DefaultQualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
             RememberPositionCheckBox.IsChecked = _settings.RememberWindowPosition;
             AutoUpdateDepsCheckBox.IsChecked = _settings.AutoUpdateDependencies;
             DownloadThumbnailsCheckBox.IsChecked = _settings.DownloadThumbnails;
             DownloadSubtitlesCheckBox.IsChecked = _settings.DownloadSubtitles;
 
             // Sync download quality with default quality
-            QualityComboBox.SelectedItem = _settings.DefaultQuality;
+            QualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
         }
 
         private Settings LoadSettings()
@@ -991,20 +1217,33 @@ $Shortcut.Save()";
                 if (File.Exists(_settingsPath))
                 {
                     var json = File.ReadAllText(_settingsPath);
-                    return JsonSerializer.Deserialize<Settings>(json) ?? new Settings();
+                    var settings = JsonSerializer.Deserialize<Settings>(json);
+                    if (settings != null)
+                    {
+                        // Initialize DefaultQualityComboBox with the saved quality
+                        if (DefaultQualityComboBox != null)
+                        {
+                            var qualityItem = DefaultQualityComboBox.Items.Cast<string>()
+                                .FirstOrDefault(x => x == settings.DefaultVideoQuality) ?? "1080p";  // Changed from DefaultQuality
+                            DefaultQualityComboBox.SelectedItem = qualityItem;
+                        }
+                        return settings;
+                    }
                 }
+                return new Settings();
             }
             catch (Exception ex)
             {
                 Logger.LogError(ex, "LoadSettings");
+                return new Settings();
             }
-            return new Settings();
         }
 
         private void SaveSettings()
         {
             try
             {
+                _settings.DefaultVideoQuality = DefaultQualityComboBox?.SelectedItem?.ToString() ?? "1080p";  // Changed from DefaultQuality
                 var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_settingsPath, json);
             }
@@ -1022,7 +1261,7 @@ $Shortcut.Save()";
             _settings.AutoUpdateDependencies = AutoUpdateDepsCheckBox.IsChecked ?? false;
             _settings.DownloadThumbnails = DownloadThumbnailsCheckBox.IsChecked ?? false;
             _settings.DownloadSubtitles = DownloadSubtitlesCheckBox.IsChecked ?? false;
-            _settings.DefaultQuality = DefaultQualityComboBox.SelectedItem?.ToString() ?? "Best";
+            _settings.DefaultVideoQuality = DefaultQualityComboBox.SelectedItem?.ToString() ?? "Best";  // Changed from DefaultQuality
             
             SaveSettings();
         }
@@ -1089,6 +1328,49 @@ $Shortcut.Save()";
             SpeedText.Text = string.Empty;
             TimeRemainingText.Text = string.Empty;
             StatusText.Text = string.Empty;
+        }
+
+        private void OutputFormatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Reset all items to default style
+            foreach (ComboBoxItem item in OutputFormatComboBox.Items)
+            {
+                item.Style = null;
+            }
+
+            // Set accent style on selected item
+            if (OutputFormatComboBox.SelectedItem is ComboBoxItem selectedItem)
+            {
+                selectedItem.Style = Application.Current.Resources["AccentComboBoxItemStyle"] as Style;
+            }
+        }
+
+        private void Setting_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            if (sender == DefaultAudioFormatComboBox)
+            {
+                var newFormat = (DefaultAudioFormatComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "MP3";
+                _settings.DefaultAudioFormat = newFormat;
+                AudioFormatComboBox.SelectedItem = AudioFormatComboBox.Items.Cast<ComboBoxItem>()
+                    .FirstOrDefault(x => x.Content.ToString() == newFormat);
+            }
+            else if (sender == DefaultAudioQualityComboBox)
+            {
+                var newQuality = (DefaultAudioQualityComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "192 kbps";
+                _settings.DefaultAudioQuality = newQuality;
+                AudioQualityComboBox.SelectedItem = AudioQualityComboBox.Items.Cast<ComboBoxItem>()
+                    .FirstOrDefault(x => x.Content.ToString() == newQuality);
+            }
+            else if (sender == DefaultQualityComboBox)
+            {
+                var newQuality = DefaultQualityComboBox.SelectedItem?.ToString() ?? "1080p";
+                _settings.DefaultVideoQuality = newQuality;
+                QualityComboBox.SelectedItem = newQuality;
+            }
+
+            SaveSettings();
         }
     }
 
