@@ -12,6 +12,8 @@ namespace YoutubeDownloader
             "debug.log"
         );
 
+        private static readonly int MaxLogAgeDays = 7; // Keep logs for 7 days
+
         static Logger()
         {
             try
@@ -22,16 +24,47 @@ namespace YoutubeDownloader
                     Directory.CreateDirectory(directory);
                 }
 
+                // Always clean the log file on startup
+                if (File.Exists(LogPath))
+                {
+                    File.Delete(LogPath);
+                }
+
                 // Start new session
-                File.AppendAllText(LogPath, $"\n\n=== New Session Started at {DateTime.Now} ===\n");
+                File.AppendAllText(LogPath, $"=== New Session Started at {DateTime.Now} ===\n");
+                File.AppendAllText(LogPath, $"YouTube Downloader Version: {GetAppVersion()}\n");
+                File.AppendAllText(LogPath, $"OS Version: {Environment.OSVersion}\n");
+                File.AppendAllText(LogPath, $"64-bit OS: {Environment.Is64BitOperatingSystem}\n");
+                File.AppendAllText(LogPath, $".NET Runtime: {Environment.Version}\n");
+                File.AppendAllText(LogPath, "=====================================\n\n");
             }
             catch { }
         }
 
-        public static void Log(string message)
+        private static string GetAppVersion()
         {
             try
             {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var version = assembly.GetName().Version;
+                return version?.ToString() ?? "Unknown";
+            }
+            catch
+            {
+                return "Unknown";
+            }
+        }
+
+        public static void Log(string message, bool isProgress = false)
+        {
+            try
+            {
+                // Skip progress messages if they're too frequent
+                if (isProgress && message.StartsWith("Progress update received:"))
+                {
+                    return;
+                }
+
                 var logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] INFO: {message}";
                 File.AppendAllText(LogPath, logMessage + "\n");
                 Debug.WriteLine(logMessage);

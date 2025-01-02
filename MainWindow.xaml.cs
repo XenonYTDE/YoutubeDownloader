@@ -229,8 +229,11 @@ namespace YoutubeDownloader
                             return;
                         }
 
-                        // Log progress details
-                        Logger.Log($"Progress update received: {p.Progress * 100:F1}%");
+                        // Log progress details (only every 10%)
+                        if (Math.Floor(p.Progress * 10) > Math.Floor(_lastProgress * 10))
+                        {
+                            Logger.Log($"Progress update: {p.Progress * 100:F1}%", true);
+                        }
 
                         // Update progress bar
                         DownloadProgress.Value = p.Progress * 100;
@@ -254,7 +257,7 @@ namespace YoutubeDownloader
                                     speedText = $"{kbSpeed:F2} KB/s";
                                 }
                                 SpeedText.Text = speedText;
-                                Logger.Log($"Parsed speed: {speedText} from {rawSpeed}");
+                                Logger.Log($"Speed: {speedText}", true);
                             }
                         }
 
@@ -283,21 +286,21 @@ namespace YoutubeDownloader
                                     etaText = $"{estimatedRemaining.Seconds}s remaining";
                                 }
                                 TimeRemainingText.Text = etaText;
-                                Logger.Log($"Calculated ETA: {etaText} (Progress: {p.Progress:P0}, Elapsed: {elapsedTime.TotalSeconds:F1}s)");
+                                Logger.Log($"ETA: {etaText}", true);
                             }
                             
                             _lastProgress = p.Progress;
                         }
 
-                        // Log all available properties
-                        Logger.Log($"Full progress update:" +
-                                  $"\nProgress: {p.Progress * 100:F1}%" +
-                                  $"\nDownload Speed: {p.DownloadSpeed}" +
-                                  $"\nETA: {p.ETA}" +
-                                  $"\nStatus: {p.State}" +
-                                  $"\nSpeedText value: {SpeedText.Text}" +
-                                  $"\nTimeRemainingText value: {TimeRemainingText.Text}");
-                        
+                        // Remove or modify the full properties log to be less frequent
+                        if (Math.Floor(p.Progress * 10) > Math.Floor(_lastProgress * 10))
+                        {
+                            Logger.Log($"Download status:" +
+                                      $"\nProgress: {p.Progress * 100:F1}%" +
+                                      $"\nSpeed: {SpeedText.Text}" +
+                                      $"\nETA: {TimeRemainingText.Text}", true);
+                        }
+
                         // Update status with percentage
                         UpdateStatus($"Downloading: {(p.Progress * 100):F1}%");
                     });
