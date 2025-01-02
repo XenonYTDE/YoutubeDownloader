@@ -30,7 +30,7 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.0.6"; // Changed from 1.0.0
+        private readonly string _currentVersion = "1.0.8"; // Changed from 1.0.6
 
         public MainWindow()
         {
@@ -627,48 +627,28 @@ namespace YoutubeDownloader
                                     Text = $"Version {updateInfo.Value.NewVersion} is available. Would you like to update now?",
                                     TextWrapping = TextWrapping.Wrap
                                 },
-                                new Button
+                                new TextBlock
                                 {
-                                    Content = "View Patch Notes",
-                                    Style = Application.Current.Resources["AccentButtonStyle"] as Style,
-                                    HorizontalAlignment = HorizontalAlignment.Left
-                                }
-                                .Apply(button => 
+                                    Text = "What's New:",
+                                    Style = Application.Current.Resources["SubtitleTextBlockStyle"] as Style,
+                                    Margin = new Thickness(0, 8, 0, 0)
+                                },
+                                new ScrollViewer
                                 {
-                                    button.Click += async (s, e) =>
+                                    Content = new TextBlock
                                     {
-                                        var patchNotesDialog = new ContentDialog
-                                        {
-                                            Title = $"What's New in Version {updateInfo.Value.NewVersion}",
-                                            Content = new ScrollViewer
-                                            {
-                                                Content = new TextBlock
-                                                {
-                                                    Text = updateInfo.Value.PatchNotes ?? "No patch notes available.",
-                                                    TextWrapping = TextWrapping.Wrap,
-                                                    Margin = new Thickness(0, 0, 0, 12)
-                                                },
-                                                MaxHeight = 300,
-                                                HorizontalScrollMode = ScrollMode.Disabled,
-                                                VerticalScrollMode = ScrollMode.Auto,
-                                                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                                                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-                                            },
-                                            PrimaryButtonText = "Close",
-                                            DefaultButton = ContentDialogButton.Primary,
-                                            XamlRoot = Content.XamlRoot
-                                        };
-
-                                        try
-                                        {
-                                            await patchNotesDialog.ShowAsync();
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Logger.LogError(ex, "ShowPatchNotes");
-                                        }
-                                    };
-                                })
+                                        Text = updateInfo.Value.PatchNotes ?? "No patch notes available.",
+                                        TextWrapping = TextWrapping.Wrap,
+                                        Style = Application.Current.Resources["BodyTextBlockStyle"] as Style,
+                                        Opacity = 0.8
+                                    },
+                                    MaxHeight = 200,
+                                    HorizontalScrollMode = ScrollMode.Disabled,
+                                    VerticalScrollMode = ScrollMode.Auto,
+                                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                                    Margin = new Thickness(0, 0, 0, 8)
+                                }
                             }
                         },
                         PrimaryButtonText = "Update",
