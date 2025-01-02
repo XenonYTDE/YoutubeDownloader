@@ -28,6 +28,16 @@
                        Text="1.0.6"
                        Opacity="0.7"
                        Style="{StaticResource CaptionTextBlockStyle}"/>
+            <Button x:Name="ThemeToggleButton"
+                    Click="ThemeToggleButton_Click"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="8,4"
+                    Margin="8,0,0,0">
+                <FontIcon x:Name="ThemeIcon" 
+                          FontFamily="Segoe Fluent Icons" 
+                          Glyph="&#xE793;"/>
+            </Button>
         </StackPanel>
 
         <!-- Main Content -->

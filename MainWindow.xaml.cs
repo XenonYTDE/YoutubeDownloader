@@ -34,59 +34,142 @@ namespace YoutubeDownloader
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
+        private new AppWindow AppWindow { get; set; } = null!;
 
         public MainWindow()
         {
-            InitializeComponent();
-            Title = "YouTube Downloader";
-            
-            // Setup dependencies path in AppData/Local
-            _dependenciesPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) ?? "",
-                "YoutubeDownloader"
-            );
-            Directory.CreateDirectory(_dependenciesPath);
-            
-            // Add settings initialization
-            _settingsPath = Path.Combine(_dependenciesPath, "settings.json");
-            _settings = LoadSettings();
-            
-            // Initialize UI with settings
-            InitializeSettings();
-            
-            // Add this line after InitializeComponent
-            VersionText.Text = _currentVersion;
-            
-            // Set window size
-            IntPtr hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            WindowId windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
-            AppWindow appWindow = AppWindow.GetFromWindowId(windowId);
-            
-            // Set size and position
-            appWindow.Resize(new SizeInt32 { Width = 800, Height = 600 });
-            
-            // Initialize history
-            _historyFilePath = Path.Combine(_dependenciesPath, "download_history.json");
-            _downloadHistory = LoadDownloadHistory();
-            HistoryListView.ItemsSource = _downloadHistory;
-            
-            // Initialize YoutubeDL with full paths
-            _youtubeDl = new YoutubeDL();
-            _youtubeDl.YoutubeDLPath = Path.Combine(_dependenciesPath, "yt-dlp.exe");
-            _youtubeDl.FFmpegPath = Path.Combine(_dependenciesPath, "ffmpeg.exe");
-            
-            InitializeQualityOptions();
-            
-            // Download dependencies if needed
-            _ = EnsureDependenciesExist();
+            try
+            {
+                Logger.Log("Starting application initialization");
+                
+                InitializeComponent();
+                Logger.Log("InitializeComponent completed");
+                
+                Title = "YouTube Downloader";
+                Logger.Log($"Current version: {_currentVersion}");
+                
+                // Setup dependencies path in AppData/Local
+                _dependenciesPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) ?? "",
+                    "YoutubeDownloader"
+                );
+                Directory.CreateDirectory(_dependenciesPath);
+                Logger.Log($"Dependencies path created: {_dependenciesPath}");
+                
+                // Add settings initialization
+                _settingsPath = Path.Combine(_dependenciesPath, "settings.json");
+                _settings = LoadSettings();
+                Logger.Log("Settings loaded");
+                
+                try
+                {
+                    // Set window size and title bar
+                    Logger.Log("Initializing window handle");
+                    IntPtr hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                    Logger.Log($"Window handle obtained: {hWnd}");
+                    
+                    WindowId windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
+                    Logger.Log($"Window ID obtained: {windowId}");
+                    
+                    AppWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+                    Logger.Log("AppWindow obtained");
+                    
+                    if (AppWindow != null)
+                    {
+                        Logger.Log("Configuring window size and title bar");
+                        // Set size and position
+                        AppWindow.Resize(new SizeInt32 { Width = 800, Height = 600 });
+                        
+                        // Setup title bar
+                        if (AppWindowTitleBar.IsCustomizationSupported())
+                        {
+                            var titleBar = AppWindow.TitleBar;
+                            titleBar.ExtendsContentIntoTitleBar = false;
+                            titleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;
+                            
+                            var theme = _settings.Theme;
+                            UpdateTitleBarColors(theme);
+                            Logger.Log($"Title bar configured with theme: {theme}");
+                        }
+                        else
+                        {
+                            Logger.Log("Title bar customization not supported");
+                        }
+                    }
+                    else
+                    {
+                        Logger.Log("WARNING: AppWindow is null");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Window initialization");
+                }
 
-            _updateManager = new UpdateManager(_currentVersion, _dependenciesPath);
-            _ = CheckForUpdatesAsync();
+                try
+                {
+                    // Initialize UI with settings
+                    InitializeSettings();
+                    Logger.Log("UI settings initialized");
+                    
+                    VersionText.Text = _currentVersion;
+                    Logger.Log("Version text set");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "UI initialization");
+                }
 
-            // Create Start Menu shortcut
-            CreateStartMenuShortcut();
+                // Initialize history
+                _historyFilePath = Path.Combine(_dependenciesPath, "download_history.json");
+                _downloadHistory = LoadDownloadHistory();
+                HistoryListView.ItemsSource = _downloadHistory;
+                
+                // Initialize YoutubeDL with full paths
+                _youtubeDl = new YoutubeDL();
+                _youtubeDl.YoutubeDLPath = Path.Combine(_dependenciesPath, "yt-dlp.exe");
+                _youtubeDl.FFmpegPath = Path.Combine(_dependenciesPath, "ffmpeg.exe");
+                
+                InitializeQualityOptions();
+                
+                // Download dependencies if needed
+                _ = EnsureDependenciesExist();
 
-            _isInitialized = true;
+                _updateManager = new UpdateManager(_currentVersion, _dependenciesPath);
+                _ = CheckForUpdatesAsync();
+
+                // Create Start Menu shortcut
+                CreateStartMenuShortcut();
+
+                _isInitialized = true;
+                Logger.Log("Application initialization completed");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "MainWindow constructor");
+                throw; // Re-throw to see the error in Visual Studio
+            }
+        }
+
+        private void UpdateTitleBarColors(string theme)
+        {
+            if (AppWindow?.TitleBar == null) return;
+            
+            var titleBar = AppWindow.TitleBar;
+            if (theme == "Light")
+            {
+                titleBar.ButtonForegroundColor = Colors.Black;
+                titleBar.ButtonHoverForegroundColor = Colors.Black;
+                titleBar.ButtonPressedForegroundColor = Colors.Black;
+                titleBar.ForegroundColor = Colors.Black;
+            }
+            else
+            {
+                titleBar.ButtonForegroundColor = Colors.White;
+                titleBar.ButtonHoverForegroundColor = Colors.White;
+                titleBar.ButtonPressedForegroundColor = Colors.White;
+                titleBar.ForegroundColor = Colors.White;
+            }
         }
 
         private void InitializeQualityOptions()
@@ -163,7 +246,11 @@ namespace YoutubeDownloader
 
                 if (_settings.DownloadThumbnails)
                 {
-                    // Download thumbnail logic here
+                    var thumbnailUrl = videoInfo.Data.Thumbnails?.LastOrDefault()?.Url;
+                    if (!string.IsNullOrEmpty(thumbnailUrl))
+                    {
+                        await DownloadThumbnail(thumbnailUrl, safeTitle, outputPath);
+                    }
                 }
 
                 if (_settings.DownloadSubtitles)
@@ -861,6 +948,8 @@ $Shortcut.Save()";
 
             // Apply theme
             ApplyTheme(_settings.Theme);
+
+            UpdateThemeIcon(_settings.Theme);
         }
 
         private Settings LoadSettings()
@@ -921,12 +1010,37 @@ $Shortcut.Save()";
         {
             if (Content is FrameworkElement rootElement)
             {
+                // Set the app's theme
                 rootElement.RequestedTheme = theme switch
                 {
                     "Light" => ElementTheme.Light,
                     "Dark" => ElementTheme.Dark,
                     _ => ElementTheme.Default
                 };
+
+                // Update title bar colors
+                if (AppWindowTitleBar.IsCustomizationSupported())
+                {
+                    var titleBar = AppWindow.TitleBar;
+                    if (theme == "Light")
+                    {
+                        titleBar.ButtonForegroundColor = Colors.Black;
+                        titleBar.ButtonHoverForegroundColor = Colors.Black;
+                        titleBar.ButtonPressedForegroundColor = Colors.Black;
+                        titleBar.ForegroundColor = Colors.Black;
+                    }
+                    else // Dark or System (when system is in dark mode)
+                    {
+                        titleBar.ButtonForegroundColor = Colors.White;
+                        titleBar.ButtonHoverForegroundColor = Colors.White;
+                        titleBar.ButtonPressedForegroundColor = Colors.White;
+                        titleBar.ForegroundColor = Colors.White;
+                    }
+                }
+
+                // Save the theme preference
+                _settings.Theme = theme;
+                SaveSettings();
             }
         }
 
@@ -947,6 +1061,45 @@ $Shortcut.Save()";
                 _settings.DefaultDownloadPath = folder.Path;
                 SaveSettings();
             }
+        }
+
+        private async Task DownloadThumbnail(string url, string videoTitle, string outputPath)
+        {
+            try
+            {
+                using var client = new HttpClient();
+                var bytes = await client.GetByteArrayAsync(url);
+                
+                var thumbnailFileName = $"{videoTitle}_thumbnail.jpg";
+                var safeThumbnailName = string.Join("_", thumbnailFileName.Split(Path.GetInvalidFileNameChars()));
+                var thumbnailPath = Path.Combine(outputPath, safeThumbnailName);
+
+                await File.WriteAllBytesAsync(thumbnailPath, bytes);
+                Logger.Log($"Thumbnail saved to: {thumbnailPath}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "DownloadThumbnail");
+            }
+        }
+
+        private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            var currentTheme = _settings.Theme;
+            var newTheme = currentTheme switch
+            {
+                "Light" => "Dark",
+                "Dark" => "Light",
+                _ => "Light" // If system, start with light
+            };
+
+            ApplyTheme(newTheme);
+            UpdateThemeIcon(newTheme);
+        }
+
+        private void UpdateThemeIcon(string theme)
+        {
+            ThemeIcon.Glyph = theme == "Light" ? "\uE793" : "\uE708";  // Sun/Moon icon
         }
     }
 
