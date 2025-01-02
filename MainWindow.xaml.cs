@@ -37,6 +37,9 @@ namespace YoutubeDownloader
             InitializeComponent();
             Title = "YouTube Downloader";
             
+            // Add this line after InitializeComponent
+            VersionText.Text = _currentVersion;
+            
             // Set window size
             IntPtr hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             WindowId windowId = Win32Interop.GetWindowIdFromWindow(hWnd);
@@ -614,7 +617,60 @@ namespace YoutubeDownloader
                     var dialog = new ContentDialog
                     {
                         Title = "Update Available",
-                        Content = $"Version {updateInfo.Value.NewVersion} is available. Would you like to update now?\nDownload URL: {updateInfo.Value.DownloadUrl}",
+                        Content = new StackPanel
+                        {
+                            Spacing = 10,
+                            Children =
+                            {
+                                new TextBlock 
+                                { 
+                                    Text = $"Version {updateInfo.Value.NewVersion} is available. Would you like to update now?",
+                                    TextWrapping = TextWrapping.Wrap
+                                },
+                                new Button
+                                {
+                                    Content = "View Patch Notes",
+                                    Style = Application.Current.Resources["AccentButtonStyle"] as Style,
+                                    HorizontalAlignment = HorizontalAlignment.Left
+                                }
+                                .Apply(button => 
+                                {
+                                    button.Click += async (s, e) =>
+                                    {
+                                        var patchNotesDialog = new ContentDialog
+                                        {
+                                            Title = $"What's New in Version {updateInfo.Value.NewVersion}",
+                                            Content = new ScrollViewer
+                                            {
+                                                Content = new TextBlock
+                                                {
+                                                    Text = updateInfo.Value.PatchNotes ?? "No patch notes available.",
+                                                    TextWrapping = TextWrapping.Wrap,
+                                                    Margin = new Thickness(0, 0, 0, 12)
+                                                },
+                                                MaxHeight = 300,
+                                                HorizontalScrollMode = ScrollMode.Disabled,
+                                                VerticalScrollMode = ScrollMode.Auto,
+                                                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                                                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                                            },
+                                            PrimaryButtonText = "Close",
+                                            DefaultButton = ContentDialogButton.Primary,
+                                            XamlRoot = Content.XamlRoot
+                                        };
+
+                                        try
+                                        {
+                                            await patchNotesDialog.ShowAsync();
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Logger.LogError(ex, "ShowPatchNotes");
+                                        }
+                                    };
+                                })
+                            }
+                        },
                         PrimaryButtonText = "Update",
                         SecondaryButtonText = "Later",
                         XamlRoot = Content.XamlRoot
@@ -750,7 +806,7 @@ namespace YoutubeDownloader
 $WshShell = New-Object -comObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut('{startMenuPath}')
 $Shortcut.TargetPath = '{currentExePath}'
-$Shortcut.WorkingDirectory = '{Path.GetDirectoryName(currentExePath)}'
+$Shortcut.WorkingDirectory = '{Path.GetDirectoryName(currentExePath) ?? string.Empty}'
 $Shortcut.Description = 'YouTube Video Downloader'
 $Shortcut.IconLocation = '{currentExePath}'
 $Shortcut.Save()";
@@ -788,5 +844,14 @@ $Shortcut.Save()";
         public string FilePath { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
         public DateTime DateTime { get; set; }
+    }
+
+    public static class Extensions
+    {
+        public static T Apply<T>(this T obj, Action<T> action)
+        {
+            action(obj);
+            return obj;
+        }
     }
 } 
