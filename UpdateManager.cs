@@ -18,7 +18,7 @@ namespace YoutubeDownloader
             _dependenciesPath = dependenciesPath;
         }
 
-        public async Task<(bool Available, string NewVersion, string DownloadUrl, string? PatchNotes)?> CheckForUpdates()
+        public async Task<(bool Available, string NewVersion, string DownloadUrl)?> CheckForUpdates()
         {
             try
             {
@@ -51,7 +51,7 @@ namespace YoutubeDownloader
                     if (asset != null)
                     {
                         Logger.Log($"Update available. Download URL: {asset.BrowserDownloadUrl}");
-                        return (true, latestVersion, asset.BrowserDownloadUrl, releaseInfo.Body);
+                        return (true, latestVersion, asset.BrowserDownloadUrl);
                     }
                     Logger.Log("No exe asset found in release");
                 }
@@ -60,7 +60,7 @@ namespace YoutubeDownloader
                     Logger.Log("No update needed");
                 }
 
-                return (false, string.Empty, string.Empty, null);
+                return (false, null, null);
             }
             catch (Exception ex)
             {
@@ -150,9 +150,6 @@ del ""%~f0""
     {
         [JsonPropertyName("tag_name")]
         public string TagName { get; set; } = string.Empty;
-
-        [JsonPropertyName("body")]
-        public string? Body { get; set; }
 
         [JsonPropertyName("assets")]
         public List<GitHubAsset> Assets { get; set; } = new();
