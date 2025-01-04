@@ -42,195 +42,269 @@
             <TabView.TabItems>
                 <!-- Download Tab -->
                 <TabViewItem Header="Download" IsSelected="True">
-                    <Grid Padding="20" MaxWidth="800">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- URL Input -->
-                        <TextBox x:Name="UrlTextBox" 
-                                PlaceholderText="Enter YouTube URL or drag video link here"
-                                Grid.Row="0"
-                                Margin="0,0,0,20"
-                                AllowDrop="True"
-                                Drop="UrlTextBox_Drop"
-                                DragOver="UrlTextBox_DragOver"
-                                TextChanged="UrlTextBox_TextChanged"
-                                ToolTipService.ToolTip="Enter the URL of the YouTube video you want to download"/>
-
-                        <!-- Thumbnail and Video Title -->
-                        <Grid Grid.Row="1" Margin="0,0,0,20">
+                    <ScrollViewer>
+                        <Grid Padding="20" 
+                              MaxWidth="1200" 
+                              MinWidth="600"
+                              HorizontalAlignment="Center">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Image x:Name="ThumbnailImage" 
-                                   Height="180" 
-                                   Stretch="Uniform"
-                                   HorizontalAlignment="Left"
-                                   Visibility="Collapsed"/>
-                            <TextBlock x:Name="VideoTitleText"
-                                       Grid.Column="1"
-                                       Style="{StaticResource BodyTextBlockStyle}"
-                                       TextWrapping="Wrap"
-                                       Margin="12,0,0,0"
-                                       VerticalAlignment="Center"
-                                       MaxWidth="400"
-                                       Visibility="Collapsed"/>
-                        </Grid>
-
-                        <!-- Download Location -->
-                        <Grid Grid.Row="2" Margin="0,0,0,20">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="LocationTextBox"
-                                    IsReadOnly="True"
-                                    PlaceholderText="Download Location"
-                                    Margin="0,0,10,0"/>
-                            <Button x:Name="BrowseButton"
-                                    Grid.Column="1"
-                                    Click="BrowseButton_Click">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8DA;"/>
-                                    <TextBlock Text="Browse"/>
-                                </StackPanel>
-                            </Button>
-                        </Grid>
-
-                        <!-- Controls -->
-                        <StackPanel Grid.Row="3" 
-                                    Orientation="Horizontal" 
-                                    Spacing="10"
-                                    Margin="0,0,0,20">
                             
-                            <!-- Download Buttons -->
-                            <Button x:Name="DownloadMP4Button" 
-                                    Click="DownloadMP4Button_Click"
-                                    ToolTipService.ToolTip="Download the video">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE714;"/>
-                                    <TextBlock Text="Download Video"/>
-                                </StackPanel>
-                            </Button>
-                            
-                            <Button x:Name="DownloadMP3Button" 
-                                    Click="DownloadMP3Button_Click"
-                                    ToolTipService.ToolTip="Download the audio">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D6;"/>
-                                    <TextBlock Text="Download MP3"/>
-                                </StackPanel>
-                            </Button>
-
-                            <!-- Video Controls -->
-                            <StackPanel x:Name="VideoControlsPanel"
-                                        Orientation="Horizontal"
-                                        Spacing="10">
-                                <ComboBox x:Name="QualityComboBox" 
-                                          PlaceholderText="Video Quality"
-                                          MinWidth="120"/>
-
-                                <StackPanel x:Name="FormatPanel" 
-                                           Orientation="Horizontal" 
-                                           Spacing="8">
-                                    <TextBlock Text="Format:" 
-                                              VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="OutputFormatComboBox" 
-                                             Width="100" 
-                                             SelectedIndex="0">
-                                        <ComboBoxItem Content="MP4"/>
-                                        <ComboBoxItem Content="MOV"/>
-                                        <ComboBoxItem Content="MKV"/>
-                                    </ComboBox>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <!-- Audio Controls -->
-                            <StackPanel x:Name="AudioControlsPanel"
-                                        Orientation="Horizontal"
-                                        Spacing="10"
-                                        Visibility="Collapsed">
-                                <StackPanel Orientation="Horizontal" 
-                                            Spacing="8">
-                                    <TextBlock Text="Quality:" 
-                                              VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="AudioQualityComboBox"
-                                              PlaceholderText="Audio Quality"
-                                              MinWidth="120"
-                                              SelectedIndex="2">
-                                        <ComboBoxItem Content="320 kbps"/>
-                                        <ComboBoxItem Content="256 kbps"/>
-                                        <ComboBoxItem Content="192 kbps"/>
-                                        <ComboBoxItem Content="128 kbps"/>
-                                    </ComboBox>
-                                </StackPanel>
-
-                                <StackPanel Orientation="Horizontal" 
-                                            Spacing="8">
-                                    <TextBlock Text="Format:" 
-                                              VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="AudioFormatComboBox"
-                                              PlaceholderText="Audio Format"
-                                              MinWidth="120"
-                                              SelectedIndex="0">
-                                        <ComboBoxItem Content="MP3"/>
-                                        <ComboBoxItem Content="WAV"/>
-                                        <ComboBoxItem Content="AAC"/>
-                                        <ComboBoxItem Content="M4A"/>
-                                        <ComboBoxItem Content="FLAC"/>
-                                    </ComboBox>
-                                </StackPanel>
-                            </StackPanel>
-                        </StackPanel>
-
-                        <!-- Progress Area -->
-                        <Grid Grid.Row="4" 
-                              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                              BorderThickness="1"
-                              CornerRadius="8"
-                              Padding="16"
-                              Margin="0,0,0,20">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            
-                            <ProgressBar x:Name="DownloadProgress" 
-                                        Height="4"
-                                        Margin="0,0,0,8"/>
-                            
-                            <StackPanel Grid.Row="1" 
-                                        Orientation="Horizontal" 
-                                        Spacing="16"
-                                        Margin="0,0,0,4">
-                                <TextBlock x:Name="SpeedText"
-                                          Style="{StaticResource CaptionTextBlockStyle}"
+
+                            <!-- URL Input -->
+                            <TextBox x:Name="UrlTextBox" 
+                                    Grid.Row="0"
+                                    MinWidth="600"
+                                    MaxWidth="800"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,0,0,20"
+                                    PlaceholderText="Enter YouTube URL or drag video link here"
+                                    AllowDrop="True"
+                                    Drop="UrlTextBox_Drop"
+                                    DragOver="UrlTextBox_DragOver"
+                                    TextChanged="UrlTextBox_TextChanged"
+                                    ToolTipService.ToolTip="Enter the URL of the YouTube video you want to download"/>
+
+                            <!-- Thumbnail and Video Title -->
+                            <Grid Grid.Row="1" 
+                                  MinWidth="600"
+                                  MaxWidth="800"
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0,0,0,20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Image x:Name="ThumbnailImage" 
+                                       Height="180" 
+                                       Stretch="Uniform"
+                                       HorizontalAlignment="Left"
+                                       Visibility="Collapsed"/>
+                                <TextBlock x:Name="VideoTitleText"
+                                           Grid.Column="1"
+                                           Style="{StaticResource BodyTextBlockStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           MaxWidth="400"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+
+                            <!-- Download Location -->
+                            <Grid Grid.Row="2"
+                                  MinWidth="600"
+                                  MaxWidth="800"
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0,0,0,20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="LocationTextBox"
+                                        IsReadOnly="True"
+                                        PlaceholderText="Download Location"
+                                        Margin="0,0,10,0"/>
+                                <Button x:Name="BrowseButton"
+                                        Grid.Column="1"
+                                        Click="BrowseButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8DA;"/>
+                                        <TextBlock Text="Browse"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <!-- Controls Panel -->
+                            <Grid Grid.Row="3"
+                                  MinWidth="600"
+                                  MaxWidth="800"
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0,0,0,20">
+                                <StackPanel Orientation="Horizontal" 
+                                          Spacing="10"
+                                          HorizontalAlignment="Left">
+                                    
+                                    <!-- Format Toggle -->
+                                    <ToggleButton x:Name="FormatToggle" 
+                                                  Click="FormatToggle_Click"
+                                                  ToolTipService.ToolTip="Switch between Video and Audio mode"
+                                                  Padding="12,5,12,7"
+                                                  Margin="0,0,8,0">
+                                        <ToggleButton.Resources>
+                                            <ResourceDictionary>
+                                                <!-- Normal state -->
+                                                <StaticResource x:Key="ToggleButtonBackground" ResourceKey="ButtonBackground"/>
+                                                <StaticResource x:Key="ToggleButtonForeground" ResourceKey="ButtonForeground"/>
+                                                <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="ButtonBorderBrush"/>
+                                                
+                                                <!-- Hover state -->
+                                                <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="ButtonBackgroundPointerOver"/>
+                                                <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="ButtonForegroundPointerOver"/>
+                                                <StaticResource x:Key="ToggleButtonBorderBrushPointerOver" ResourceKey="ButtonBorderBrushPointerOver"/>
+                                                
+                                                <!-- Pressed state -->
+                                                <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="ButtonBackgroundPressed"/>
+                                                <StaticResource x:Key="ToggleButtonForegroundPressed" ResourceKey="ButtonForegroundPressed"/>
+                                                <StaticResource x:Key="ToggleButtonBorderBrushPressed" ResourceKey="ButtonBorderBrushPressed"/>
+                                                
+                                                <!-- Checked state -->
+                                                <StaticResource x:Key="ToggleButtonBackgroundChecked" ResourceKey="ButtonBackground"/>
+                                                <StaticResource x:Key="ToggleButtonForegroundChecked" ResourceKey="ButtonForeground"/>
+                                                <StaticResource x:Key="ToggleButtonBorderBrushChecked" ResourceKey="ButtonBorderBrush"/>
+                                                
+                                                <!-- Checked + Hover state -->
+                                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPointerOver" ResourceKey="ButtonBackgroundPointerOver"/>
+                                                <StaticResource x:Key="ToggleButtonForegroundCheckedPointerOver" ResourceKey="ButtonForegroundPointerOver"/>
+                                                <StaticResource x:Key="ToggleButtonBorderBrushCheckedPointerOver" ResourceKey="ButtonBorderBrushPointerOver"/>
+                                                
+                                                <!-- Checked + Pressed state -->
+                                                <StaticResource x:Key="ToggleButtonBackgroundCheckedPressed" ResourceKey="ButtonBackgroundPressed"/>
+                                                <StaticResource x:Key="ToggleButtonForegroundCheckedPressed" ResourceKey="ButtonForegroundPressed"/>
+                                                <StaticResource x:Key="ToggleButtonBorderBrushCheckedPressed" ResourceKey="ButtonBorderBrushPressed"/>
+                                            </ResourceDictionary>
+                                        </ToggleButton.Resources>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon x:Name="FormatIcon" 
+                                                     FontFamily="Segoe Fluent Icons" 
+                                                     Glyph="&#xE714;"/>
+                                            <TextBlock x:Name="FormatText" Text="Video Mode"/>
+                                        </StackPanel>
+                                    </ToggleButton>
+                                    
+                                    <!-- Download Buttons -->
+                                    <Button x:Name="DownloadMP4Button" 
+                                            Click="DownloadMP4Button_Click"
+                                            ToolTipService.ToolTip="Download the video"
+                                            MinWidth="160">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE714;"/>
+                                            <TextBlock Text="Download Video"/>
+                                        </StackPanel>
+                                    </Button>
+                                    
+                                    <Button x:Name="DownloadMP3Button" 
+                                            Click="DownloadMP3Button_Click"
+                                            ToolTipService.ToolTip="Download the audio"
+                                            MinWidth="160">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D6;"/>
+                                            <TextBlock Text="Download Audio"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- Video Controls -->
+                                    <StackPanel x:Name="VideoControlsPanel"
+                                                Orientation="Horizontal"
+                                                Spacing="10">
+                                        <!-- Remove quality label and just keep ComboBox with placeholder -->
+                                        <ComboBox x:Name="QualityComboBox" 
+                                                  PlaceholderText="Video Quality"
+                                                  Width="120">
+                                            <ComboBoxItem Content="Best"/>
+                                            <ComboBoxItem Content="1080p"/>
+                                            <ComboBoxItem Content="720p"/>
+                                            <ComboBoxItem Content="480p"/>
+                                            <ComboBoxItem Content="360p"/>
+                                        </ComboBox>
+
+                                        <StackPanel x:Name="FormatPanel" 
+                                                   Orientation="Horizontal" 
+                                                   Spacing="8">
+                                            <TextBlock Text="Format:" 
+                                                      VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="OutputFormatComboBox" 
+                                                     Width="100" 
+                                                     SelectedIndex="0">
+                                                <ComboBoxItem Content="MP4"/>
+                                                <ComboBoxItem Content="MOV"/>
+                                                <ComboBoxItem Content="MKV"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Audio Controls -->
+                                    <StackPanel x:Name="AudioControlsPanel"
+                                                Orientation="Horizontal"
+                                                Spacing="10"
+                                                Visibility="Collapsed">
+                                        <!-- Remove quality label and just keep ComboBox with placeholder -->
+                                        <ComboBox x:Name="AudioQualityComboBox"
+                                                  PlaceholderText="Audio Quality"
+                                                  Width="120">
+                                            <ComboBoxItem Content="320 kbps"/>
+                                            <ComboBoxItem Content="256 kbps"/>
+                                            <ComboBoxItem Content="192 kbps"/>
+                                            <ComboBoxItem Content="128 kbps"/>
+                                        </ComboBox>
+
+                                        <StackPanel Orientation="Horizontal" 
+                                                    Spacing="8">
+                                            <TextBlock Text="Format:" 
+                                                      VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="AudioFormatComboBox"
+                                                      PlaceholderText="Audio Format"
+                                                      Width="120">
+                                                <ComboBoxItem Content="MP3"/>
+                                                <ComboBoxItem Content="WAV"/>
+                                                <ComboBoxItem Content="AAC"/>
+                                                <ComboBoxItem Content="M4A"/>
+                                                <ComboBoxItem Content="FLAC"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Progress Area -->
+                            <Grid Grid.Row="4"
+                                  MinWidth="600"
+                                  MaxWidth="800"
+                                  HorizontalAlignment="Stretch"
+                                  Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                  BorderThickness="1"
+                                  Padding="16"
+                                  Margin="0,0,0,20"
+                                  CornerRadius="8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                
+                                <ProgressBar x:Name="DownloadProgress" 
+                                            Height="4"
+                                            Margin="0,0,0,8"/>
+                                
+                                <StackPanel Grid.Row="1" 
+                                            Orientation="Horizontal" 
+                                            Spacing="16"
+                                            Margin="0,0,0,4">
+                                    <TextBlock x:Name="SpeedText"
+                                              Style="{StaticResource CaptionTextBlockStyle}"
+                                              Opacity="0.8"/>
+                                    <TextBlock x:Name="TimeRemainingText"
+                                              Style="{StaticResource CaptionTextBlockStyle}"
+                                              Opacity="0.8"/>
+                                </StackPanel>
+                                
+                                <TextBlock x:Name="StatusText"
+                                          Grid.Row="2"
+                                          TextWrapping="Wrap"
+                                          Style="{StaticResource BodyTextBlockStyle}"
                                           Opacity="0.8"/>
-                                <TextBlock x:Name="TimeRemainingText"
-                                          Style="{StaticResource CaptionTextBlockStyle}"
-                                          Opacity="0.8"/>
-                            </StackPanel>
-                            
-                            <TextBlock x:Name="StatusText"
-                                      Grid.Row="2"
-                                      TextWrapping="Wrap"
-                                      Style="{StaticResource BodyTextBlockStyle}"
-                                      Opacity="0.8"/>
+                            </Grid>
                         </Grid>
-                    </Grid>
+                    </ScrollViewer>
                 </TabViewItem>
 
                 <!-- History Tab -->
@@ -306,28 +380,61 @@
                 <!-- Settings Tab -->
                 <TabViewItem Header="Settings">
                     <ScrollViewer>
-                        <StackPanel Padding="20" Spacing="16">
+                        <StackPanel Padding="20" 
+                                  Spacing="16" 
+                                  MaxWidth="800" 
+                                  HorizontalAlignment="Stretch">
                             <TextBlock Text="General Settings" 
                                      Style="{StaticResource SubtitleTextBlockStyle}"/>
                             
-                            <!-- Download Location -->
+                            <!-- Default Video Location -->
                             <StackPanel>
-                                <TextBlock Text="Default Download Location" 
-                                         Style="{StaticResource BodyTextBlockStyle}"/>
-                                <Grid Margin="0,8,0,0">
+                                <TextBlock Text="Default Video Location:" Margin="0,0,0,5"/>
+                                <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="DefaultLocationBox" 
-                                            IsReadOnly="True"/>
-                                    <Button Grid.Column="1" 
-                                            Margin="8,0,0,0"
-                                            Click="DefaultLocationBrowse_Click">
-                                        <FontIcon FontFamily="Segoe Fluent Icons" 
-                                                Glyph="&#xE8DA;"/>
-                                    </Button>
+                                    <TextBox x:Name="DefaultVideoLocationBox" IsReadOnly="True"/>
+                                    <Button Content="Browse" Grid.Column="1" Margin="5,0,0,0" Click="DefaultVideoLocationBrowse_Click"/>
                                 </Grid>
+                            </StackPanel>
+
+                            <!-- Default Audio Location -->
+                            <StackPanel>
+                                <TextBlock Text="Default Audio Location:" Margin="0,0,0,5"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="DefaultAudioLocationBox" IsReadOnly="True"/>
+                                    <Button Content="Browse" Grid.Column="1" Margin="5,0,0,0" Click="DefaultAudioLocationBrowse_Click"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Legacy Download Location -->
+                            <StackPanel>
+                                <TextBlock Text="Default Download Location (Legacy):" Margin="0,0,0,5"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="DefaultLocationBox" IsReadOnly="True"/>
+                                    <Button Content="Browse" Grid.Column="1" Margin="5,0,0,0" Click="DefaultLocationBrowse_Click"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Download Settings -->
+                            <TextBlock Text="Download Settings" 
+                                     Style="{StaticResource SubtitleTextBlockStyle}"/>
+                            
+                            <StackPanel>
+                                <TextBlock Text="Default Video Quality:" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="DefaultQualityComboBox" 
+                                         SelectionChanged="Setting_Changed"
+                                         Margin="0,0,0,10"/>
                             </StackPanel>
 
                             <!-- Other Settings -->
@@ -340,65 +447,43 @@
                                          Content="Auto-update Dependencies"
                                          Checked="Setting_Changed"
                                          Unchecked="Setting_Changed"/>
-                            </StackPanel>
-
-                            <!-- Download Settings -->
-                            <TextBlock Text="Download Settings" 
-                                     Style="{StaticResource SubtitleTextBlockStyle}"
-                                     Margin="0,8,0,0"/>
-                            
-                            <StackPanel>
-                                <TextBlock Text="Default Quality" 
-                                         Style="{StaticResource BodyTextBlockStyle}"/>
-                                <ComboBox x:Name="DefaultQualityComboBox" 
-                                         Margin="0,8,0,0"
-                                         SelectionChanged="Setting_Changed"/>
-                            </StackPanel>
-
-                            <StackPanel>
                                 <CheckBox x:Name="DownloadThumbnailsCheckBox" 
-                                         Content="Download Video Thumbnails"
+                                         Content="Download Thumbnails"
                                          Checked="Setting_Changed"
                                          Unchecked="Setting_Changed"/>
                                 <CheckBox x:Name="DownloadSubtitlesCheckBox" 
-                                         Content="Download Subtitles (when available)"
+                                         Content="Download Subtitles"
                                          Checked="Setting_Changed"
                                          Unchecked="Setting_Changed"/>
                             </StackPanel>
 
-                            <!-- In the Settings Tab, add audio settings -->
+                            <!-- Audio Settings -->
+                            <TextBlock Text="Audio Settings" 
+                                      Style="{StaticResource SubtitleTextBlockStyle}"/>
+                                      
                             <StackPanel>
-                                <TextBlock Text="Audio Settings" 
-                                          Style="{StaticResource SubtitleTextBlockStyle}"
-                                          Margin="0,16,0,0"/>
-                                          
-                                <StackPanel Margin="0,8,0,0">
-                                    <TextBlock Text="Default Audio Format" 
-                                              Style="{StaticResource BodyTextBlockStyle}"/>
-                                    <ComboBox x:Name="DefaultAudioFormatComboBox" 
-                                             Margin="0,8,0,0"
-                                             SelectedIndex="0"
-                                             SelectionChanged="Setting_Changed">
-                                        <ComboBoxItem Content="MP3"/>
-                                        <ComboBoxItem Content="WAV"/>
-                                        <ComboBoxItem Content="AAC"/>
-                                        <ComboBoxItem Content="M4A"/>
-                                        <ComboBoxItem Content="FLAC"/>
-                                    </ComboBox>
-                                </StackPanel>
+                                <TextBlock Text="Default Audio Format" 
+                                          Style="{StaticResource BodyTextBlockStyle}"/>
+                                <ComboBox x:Name="DefaultAudioFormatComboBox" 
+                                         SelectionChanged="Setting_Changed">
+                                    <ComboBoxItem Content="MP3"/>
+                                    <ComboBoxItem Content="WAV"/>
+                                    <ComboBoxItem Content="AAC"/>
+                                    <ComboBoxItem Content="M4A"/>
+                                    <ComboBoxItem Content="FLAC"/>
+                                </ComboBox>
+                            </StackPanel>
                                 
-                                <StackPanel Margin="0,16,0,0">
-                                    <TextBlock Text="Default Audio Quality" 
-                                              Style="{StaticResource BodyTextBlockStyle}"/>
-                                    <ComboBox x:Name="DefaultAudioQualityComboBox" 
-                                             Margin="0,8,0,0"
-                                             SelectionChanged="Setting_Changed">
-                                        <ComboBoxItem Content="320 kbps"/>
-                                        <ComboBoxItem Content="256 kbps"/>
-                                        <ComboBoxItem Content="192 kbps"/>
-                                        <ComboBoxItem Content="128 kbps"/>
-                                    </ComboBox>
-                                </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Default Audio Quality" 
+                                          Style="{StaticResource BodyTextBlockStyle}"/>
+                                <ComboBox x:Name="DefaultAudioQualityComboBox" 
+                                         SelectionChanged="Setting_Changed">
+                                    <ComboBoxItem Content="320 kbps"/>
+                                    <ComboBoxItem Content="256 kbps"/>
+                                    <ComboBoxItem Content="192 kbps"/>
+                                    <ComboBoxItem Content="128 kbps"/>
+                                </ComboBox>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

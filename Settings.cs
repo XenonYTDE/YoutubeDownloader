@@ -1,5 +1,7 @@
 public class Settings
 {
+    public string DefaultVideoDownloadPath { get; set; } = string.Empty;
+    public string DefaultAudioDownloadPath { get; set; } = string.Empty;
     public string DefaultDownloadPath { get; set; } = string.Empty;
     public bool RememberWindowPosition { get; set; } = true;
     public bool AutoUpdateDependencies { get; set; } = true;

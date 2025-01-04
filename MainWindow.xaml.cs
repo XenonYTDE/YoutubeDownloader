@@ -34,7 +34,7 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.9"; // Changed from "1.1.3"
+        private readonly string _currentVersion = "1.1.10"; // Changed from "1.1.3"
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
@@ -42,6 +42,10 @@ namespace YoutubeDownloader
         private DateTime _downloadStartTime;
         private double _lastProgress;
         private bool _isMP3Mode = false;
+
+        // Add these properties for binding
+        public bool IsVideoMode => !_isMP3Mode;
+        public bool IsAudioMode => _isMP3Mode;
 
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -65,6 +69,10 @@ namespace YoutubeDownloader
                 Logger.Log("Starting application initialization");
                 
                 InitializeComponent();
+                
+                // Initialize mode and buttons right away
+                _isMP3Mode = false;
+                UpdateModeBindings();
                 
                 Logger.Log("InitializeComponent completed");
                 
@@ -271,9 +279,26 @@ namespace YoutubeDownloader
 
         private async Task DownloadVideo(bool isMP4)
         {
+            if (_isDownloading)
+            {
+                UpdateStatus("A download is already in progress");
+                return;
+            }
+
+            if (!_isMP3Mode && !isMP4)
+            {
+                UpdateStatus("Please switch to audio mode first");
+                return;
+            }
+
+            if (_isMP3Mode && isMP4)
+            {
+                UpdateStatus("Please switch to video mode first");
+                return;
+            }
+
             try
             {
-                ClearPreview();
                 _isDownloading = true;
                 _downloadStartTime = DateTime.Now;  // Initialize download start time
                 _lastProgress = 0;  // Reset progress
@@ -300,10 +325,12 @@ namespace YoutubeDownloader
 
                 string outputPath = !string.IsNullOrEmpty(LocationTextBox.Text)
                     ? LocationTextBox.Text
-                    : (!string.IsNullOrEmpty(_settings.DefaultDownloadPath)
-                        ? _settings.DefaultDownloadPath
-                        : (isMP4 
-                            ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
+                    : (isMP4 
+                        ? (!string.IsNullOrEmpty(_settings.DefaultVideoDownloadPath)
+                            ? _settings.DefaultVideoDownloadPath
+                            : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos))
+                        : (!string.IsNullOrEmpty(_settings.DefaultAudioDownloadPath)
+                            ? _settings.DefaultAudioDownloadPath
                             : Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)));
 
                 // Configure download options with specific output template
@@ -648,89 +675,22 @@ namespace YoutubeDownloader
 
         private async void DownloadMP3Button_Click(object sender, RoutedEventArgs e)
         {
-            try
+            if (!_isMP3Mode)
             {
-                Logger.LogUI("AudioControls", "ShowControls", "Starting MP3 mode");
-                Logger.LogMemory();
-                LogControlHierarchy();  // Log the control hierarchy
-                
-                if (_isDownloading)
-                {
-                    UpdateStatus("A download is already in progress");
-                    return;
-                }
-
-                _isMP3Mode = true;
-                
-                Logger.LogUI("AudioControlsPanel", "Visibility", 
-                    $"Before: {AudioControlsPanel.Visibility}, Setting to Visible");
-                AudioControlsPanel.Visibility = Visibility.Visible;
-                Logger.LogUI("AudioControlsPanel", "Visibility", 
-                    $"After: {AudioControlsPanel.Visibility}");
-                
-                // Log the state of each control
-                Logger.LogUI("Controls", "State", $@"
-AudioControlsPanel: {AudioControlsPanel?.Visibility}
-AudioQualityComboBox: {AudioQualityComboBox?.Visibility}
-AudioFormatComboBox: {AudioFormatComboBox?.Visibility}
-FormatPanel: {FormatPanel?.Visibility}
-QualityComboBox: {QualityComboBox?.Visibility}
-");
-
-                var selectedQuality = (AudioQualityComboBox?.SelectedItem as ComboBoxItem)?.Content.ToString();
-                var selectedFormat = (AudioFormatComboBox?.SelectedItem as ComboBoxItem)?.Content.ToString();
-                
-                Logger.LogUI("AudioControls", "State", 
-                    $"Quality: {selectedQuality ?? "null"}, Format: {selectedFormat ?? "null"}");
-                
-                FormatPanel.Visibility = Visibility.Collapsed;
-                QualityComboBox.Visibility = Visibility.Collapsed;
-
-                // Log the final state
-                LogControlHierarchy();
-                
-                await DownloadVideo(false);
+                UpdateStatus("Please switch to audio mode first");
+                return;
             }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "DownloadMP3Button_Click");
-                UpdateStatus("Error switching to MP3 mode");
-            }
+            await DownloadVideo(false);
         }
 
         private async void DownloadMP4Button_Click(object sender, RoutedEventArgs e)
         {
-            try
+            if (_isMP3Mode)
             {
-                Logger.LogUI("VideoControls", "ShowControls", "Starting Video mode");
-                
-                if (_isDownloading)
-                {
-                    UpdateStatus("A download is already in progress");
-                    return;
-                }
-
-                _isMP3Mode = false;
-                
-                Logger.LogUI("AudioControlsPanel", "Visibility", 
-                    $"Before: {AudioControlsPanel.Visibility}, Setting to Collapsed");
-                AudioControlsPanel.Visibility = Visibility.Collapsed;
-                
-                Logger.LogUI("VideoControls", "State", 
-                    $"Quality: {QualityComboBox?.SelectedItem}, Format: {OutputFormatComboBox?.SelectedItem}");
-                
-                Logger.LogUI("VideoControls", "Visibility", 
-                    $"FormatPanel: {FormatPanel.Visibility}, QualityComboBox: {QualityComboBox.Visibility}");
-                FormatPanel.Visibility = Visibility.Visible;
-                QualityComboBox.Visibility = Visibility.Visible;
-                
-                await DownloadVideo(true);
+                UpdateStatus("Please switch to video mode first");
+                return;
             }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "DownloadMP4Button_Click");
-                UpdateStatus("Error switching to video mode");
-            }
+            await DownloadVideo(true);
         }
 
         private async void BrowseButton_Click(object sender, RoutedEventArgs e)
@@ -1191,23 +1151,56 @@ $Shortcut.Save()";
 
         private void InitializeSettings()
         {
-            // Initialize quality options
-            DefaultQualityComboBox.Items.Add("Best");
-            DefaultQualityComboBox.Items.Add("1080p");
-            DefaultQualityComboBox.Items.Add("720p");
-            DefaultQualityComboBox.Items.Add("480p");
-            DefaultQualityComboBox.Items.Add("360p");
-            
-            // Set UI elements from settings
-            DefaultLocationBox.Text = _settings.DefaultDownloadPath;
-            DefaultQualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
-            RememberPositionCheckBox.IsChecked = _settings.RememberWindowPosition;
-            AutoUpdateDepsCheckBox.IsChecked = _settings.AutoUpdateDependencies;
-            DownloadThumbnailsCheckBox.IsChecked = _settings.DownloadThumbnails;
-            DownloadSubtitlesCheckBox.IsChecked = _settings.DownloadSubtitles;
+            try
+            {
+                // Initialize quality options
+                DefaultQualityComboBox.Items.Add("Best");
+                DefaultQualityComboBox.Items.Add("1080p");
+                DefaultQualityComboBox.Items.Add("720p");
+                DefaultQualityComboBox.Items.Add("480p");
+                DefaultQualityComboBox.Items.Add("360p");
 
-            // Sync download quality with default quality
-            QualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
+                // Initialize audio format options
+                DefaultAudioFormatComboBox.Items.Clear();
+                DefaultAudioFormatComboBox.Items.Add(new ComboBoxItem { Content = "MP3" });
+                DefaultAudioFormatComboBox.Items.Add(new ComboBoxItem { Content = "WAV" });
+                DefaultAudioFormatComboBox.Items.Add(new ComboBoxItem { Content = "AAC" });
+                DefaultAudioFormatComboBox.Items.Add(new ComboBoxItem { Content = "M4A" });
+                DefaultAudioFormatComboBox.Items.Add(new ComboBoxItem { Content = "FLAC" });
+
+                // Initialize audio quality options
+                DefaultAudioQualityComboBox.Items.Clear();
+                DefaultAudioQualityComboBox.Items.Add(new ComboBoxItem { Content = "320 kbps" });
+                DefaultAudioQualityComboBox.Items.Add(new ComboBoxItem { Content = "256 kbps" });
+                DefaultAudioQualityComboBox.Items.Add(new ComboBoxItem { Content = "192 kbps" });
+                DefaultAudioQualityComboBox.Items.Add(new ComboBoxItem { Content = "128 kbps" });
+                
+                // Set UI elements from settings
+                DefaultVideoLocationBox.Text = _settings.DefaultVideoDownloadPath;
+                DefaultAudioLocationBox.Text = _settings.DefaultAudioDownloadPath;
+                DefaultLocationBox.Text = _settings.DefaultDownloadPath;  // Keep for backward compatibility
+                DefaultQualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
+                RememberPositionCheckBox.IsChecked = _settings.RememberWindowPosition;
+                AutoUpdateDepsCheckBox.IsChecked = _settings.AutoUpdateDependencies;
+                DownloadThumbnailsCheckBox.IsChecked = _settings.DownloadThumbnails;
+                DownloadSubtitlesCheckBox.IsChecked = _settings.DownloadSubtitles;
+
+                // Set default audio format and quality
+                var audioFormatItem = DefaultAudioFormatComboBox.Items.Cast<ComboBoxItem>()
+                    .FirstOrDefault(x => x.Content.ToString() == _settings.DefaultAudioFormat);
+                DefaultAudioFormatComboBox.SelectedItem = audioFormatItem ?? DefaultAudioFormatComboBox.Items[0];
+
+                var audioQualityItem = DefaultAudioQualityComboBox.Items.Cast<ComboBoxItem>()
+                    .FirstOrDefault(x => x.Content.ToString() == _settings.DefaultAudioQuality);
+                DefaultAudioQualityComboBox.SelectedItem = audioQualityItem ?? DefaultAudioQualityComboBox.Items[2]; // Default to 192 kbps
+
+                // Sync download quality with default quality
+                QualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "InitializeSettings");
+            }
         }
 
         private Settings LoadSettings()
@@ -1266,23 +1259,36 @@ $Shortcut.Save()";
             SaveSettings();
         }
 
-        private async void DefaultLocationBrowse_Click(object sender, RoutedEventArgs e)
+        private async void DefaultVideoLocationBrowse_Click(object sender, RoutedEventArgs e)
         {
-            var folderPicker = new Windows.Storage.Pickers.FolderPicker();
-            
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, hwnd);
-            
-            folderPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Downloads;
-            folderPicker.FileTypeFilter.Add("*");
-
-            var folder = await folderPicker.PickSingleFolderAsync();
+            var folder = await PickFolder();
             if (folder != null)
             {
-                DefaultLocationBox.Text = folder.Path;
-                _settings.DefaultDownloadPath = folder.Path;
+                DefaultVideoLocationBox.Text = folder.Path;
+                _settings.DefaultVideoDownloadPath = folder.Path;
                 SaveSettings();
             }
+        }
+
+        private async void DefaultAudioLocationBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var folder = await PickFolder();
+            if (folder != null)
+            {
+                DefaultAudioLocationBox.Text = folder.Path;
+                _settings.DefaultAudioDownloadPath = folder.Path;
+                SaveSettings();
+            }
+        }
+
+        private async Task<Windows.Storage.StorageFolder?> PickFolder()
+        {
+            var folderPicker = new Windows.Storage.Pickers.FolderPicker();
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, hwnd);
+            folderPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Downloads;
+            folderPicker.FileTypeFilter.Add("*");
+            return await folderPicker.PickSingleFolderAsync();
         }
 
         private async Task DownloadThumbnail(string url, string videoTitle, string outputPath)
@@ -1332,16 +1338,19 @@ $Shortcut.Save()";
 
         private void OutputFormatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Reset all items to default style
-            foreach (ComboBoxItem item in OutputFormatComboBox.Items)
-            {
-                item.Style = null;
-            }
-
-            // Set accent style on selected item
             if (OutputFormatComboBox.SelectedItem is ComboBoxItem selectedItem)
             {
-                selectedItem.Style = Application.Current.Resources["AccentComboBoxItemStyle"] as Style;
+                _isMP3Mode = selectedItem.Content.ToString() == "MP3";
+                
+                // Update UI visibility
+                VideoControlsPanel.Visibility = _isMP3Mode ? Visibility.Collapsed : Visibility.Visible;
+                AudioControlsPanel.Visibility = _isMP3Mode ? Visibility.Visible : Visibility.Collapsed;
+                
+                // Update button visibility
+                UpdateModeBindings();
+                
+                // Clear any error messages
+                UpdateStatus("");
             }
         }
 
@@ -1349,28 +1358,102 @@ $Shortcut.Save()";
         {
             if (!_isInitialized) return;
 
-            if (sender == DefaultAudioFormatComboBox)
+            if (sender is ComboBox comboBox)
             {
-                var newFormat = (DefaultAudioFormatComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "MP3";
-                _settings.DefaultAudioFormat = newFormat;
-                AudioFormatComboBox.SelectedItem = AudioFormatComboBox.Items.Cast<ComboBoxItem>()
-                    .FirstOrDefault(x => x.Content.ToString() == newFormat);
-            }
-            else if (sender == DefaultAudioQualityComboBox)
-            {
-                var newQuality = (DefaultAudioQualityComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "192 kbps";
-                _settings.DefaultAudioQuality = newQuality;
-                AudioQualityComboBox.SelectedItem = AudioQualityComboBox.Items.Cast<ComboBoxItem>()
-                    .FirstOrDefault(x => x.Content.ToString() == newQuality);
-            }
-            else if (sender == DefaultQualityComboBox)
-            {
-                var newQuality = DefaultQualityComboBox.SelectedItem?.ToString() ?? "1080p";
-                _settings.DefaultVideoQuality = newQuality;
-                QualityComboBox.SelectedItem = newQuality;
-            }
+                if (comboBox == DefaultAudioFormatComboBox)
+                {
+                    var newFormat = (DefaultAudioFormatComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "MP3";
+                    _settings.DefaultAudioFormat = newFormat;
+                    AudioFormatComboBox.SelectedItem = AudioFormatComboBox.Items.Cast<ComboBoxItem>()
+                        .FirstOrDefault(x => x.Content.ToString() == newFormat);
+                }
+                else if (comboBox == DefaultAudioQualityComboBox)
+                {
+                    var newQuality = (DefaultAudioQualityComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "192 kbps";
+                    _settings.DefaultAudioQuality = newQuality;
+                    AudioQualityComboBox.SelectedItem = AudioQualityComboBox.Items.Cast<ComboBoxItem>()
+                        .FirstOrDefault(x => x.Content.ToString() == newQuality);
+                }
+                else if (comboBox == DefaultQualityComboBox)
+                {
+                    var newQuality = DefaultQualityComboBox.SelectedItem?.ToString() ?? "1080p";
+                    _settings.DefaultVideoQuality = newQuality;
+                    QualityComboBox.SelectedItem = newQuality;
+                }
 
-            SaveSettings();
+                SaveSettings();
+            }
+        }
+
+        // Keep this for backward compatibility
+        private async void DefaultLocationBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var folder = await PickFolder();
+            if (folder != null)
+            {
+                DefaultLocationBox.Text = folder.Path;
+                _settings.DefaultDownloadPath = folder.Path;
+                SaveSettings();
+            }
+        }
+
+        private void FormatToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _isMP3Mode = FormatToggle.IsChecked ?? false;
+            
+            // Update UI
+            FormatIcon.Glyph = _isMP3Mode ? "\uE8D6" : "\uE714";  // Switch between audio/video icons
+            FormatText.Text = _isMP3Mode ? "Audio Mode" : "Video Mode";
+            
+            // Update visibility of controls
+            VideoControlsPanel.Visibility = _isMP3Mode ? Visibility.Collapsed : Visibility.Visible;
+            AudioControlsPanel.Visibility = _isMP3Mode ? Visibility.Visible : Visibility.Collapsed;
+            
+            // Update button states
+            UpdateModeBindings();
+            
+            // Clear any error messages
+            UpdateStatus("");
+            
+            Logger.Log($"Switched to {(_isMP3Mode ? "Audio" : "Video")} mode");
+        }
+
+        private void InitializeUI()
+        {
+            try
+            {
+                _isMP3Mode = false;  // Start in video mode
+                FormatToggle.IsChecked = false;
+                FormatIcon.Glyph = "\uE714";
+                FormatText.Text = "Video Mode";
+                VideoControlsPanel.Visibility = Visibility.Visible;
+                AudioControlsPanel.Visibility = Visibility.Collapsed;
+                
+                // Set initial button states
+                UpdateModeBindings();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "InitializeUI");
+            }
+        }
+
+        // Add property changed notification
+        private void UpdateModeBindings()
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                // Update download buttons
+                if (DownloadMP4Button is Button videoButton)
+                {
+                    videoButton.Visibility = !_isMP3Mode ? Visibility.Visible : Visibility.Collapsed;
+                }
+                
+                if (DownloadMP3Button is Button audioButton)
+                {
+                    audioButton.Visibility = _isMP3Mode ? Visibility.Visible : Visibility.Collapsed;
+                }
+            });
         }
     }
 
