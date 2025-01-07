@@ -12,6 +12,8 @@ namespace YoutubeDownloader
             "YoutubeDownloader",
             "debug.log"
         );
+        
+        private const int MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
 
         static Logger()
         {
@@ -21,6 +23,30 @@ namespace YoutubeDownloader
                 if (directory != null && !Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
+                }
+
+                // Check file size and archive/clear if needed
+                if (File.Exists(LogPath))
+                {
+                    var fileInfo = new FileInfo(LogPath);
+                    if (fileInfo.Length > MAX_LOG_SIZE)
+                    {
+                        // Archive the old log
+                        string archivePath = Path.Combine(
+                            Path.GetDirectoryName(LogPath)!,
+                            $"debug_{DateTime.Now:yyyyMMdd_HHmmss}.log"
+                        );
+                        File.Move(LogPath, archivePath);
+                        
+                        // Delete old archives (keep last 5)
+                        var logFiles = Directory.GetFiles(Path.GetDirectoryName(LogPath)!, "debug_*.log")
+                            .OrderByDescending(f => f)
+                            .Skip(5);
+                        foreach (var oldLog in logFiles)
+                        {
+                            try { File.Delete(oldLog); } catch { }
+                        }
+                    }
                 }
 
                 // Start new session with separator
