@@ -17,11 +17,12 @@ using System.Text.Json;
 using System.Diagnostics;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
-using YoutubeDownloader;
 using System.Runtime.InteropServices;
 using System.Threading;
 using FFMpegCore;
 using System.Text;
+using VideoLibrary;
+using FFMpegCore.Enums;
 
 namespace YoutubeDownloader
 {
@@ -34,14 +35,13 @@ namespace YoutubeDownloader
         private readonly string _historyFilePath;
         private string _lastUrl = string.Empty;
         private readonly UpdateManager _updateManager;
-        private readonly string _currentVersion = "1.1.11";
+        private readonly string _currentVersion = "1.1.12";
         private Settings _settings;
         private readonly string _settingsPath;
         private bool _isInitialized;
         private new AppWindow AppWindow { get; set; } = null!;
-        private DateTime _downloadStartTime;
-        private double _lastProgress;
         private bool _isMP3Mode = false;
+        private DateTime _downloadStartTime;
 
         // Add these properties for binding
         public bool IsVideoMode => !_isMP3Mode;
@@ -60,6 +60,15 @@ namespace YoutubeDownloader
                 bytes = bytes / 1024;
             }
             return $"{bytes:0.##} {sizes[order]}";
+        }
+
+        private string FormatTimeRemaining(TimeSpan? timeSpan)
+        {
+            if (!timeSpan.HasValue)
+                return "";
+            
+            var ts = timeSpan.Value;
+            return $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
         }
 
         public MainWindow()
@@ -196,6 +205,7 @@ namespace YoutubeDownloader
                 Logger.Log("Initializing quality options...");
                 
                 // Video quality options
+                QualityComboBox.Items.Clear();  // Clear first to avoid duplicates
                 QualityComboBox.Items.Add("Best");
                 QualityComboBox.Items.Add("1080p");
                 QualityComboBox.Items.Add("720p");
@@ -204,36 +214,10 @@ namespace YoutubeDownloader
                 
                 // Set default video quality from settings
                 var defaultQualityItem = QualityComboBox.Items.Cast<string>()
-                    .FirstOrDefault(x => x == _settings.DefaultVideoQuality) ?? "Best";
-                QualityComboBox.SelectedIndex = QualityComboBox.Items.IndexOf(defaultQualityItem);
+                    .FirstOrDefault(x => x == _settings.DefaultVideoQuality) ?? "1080p";
+                QualityComboBox.SelectedItem = defaultQualityItem;
                 
                 Logger.Log($"Video quality set to: {defaultQualityItem}");
-
-                // Set default video format
-                var defaultFormatItem = OutputFormatComboBox.Items.Cast<ComboBoxItem>()
-                    .FirstOrDefault(x => x.Content.ToString() == _settings.DefaultVideoFormat);
-                if (defaultFormatItem != null)
-                {
-                    OutputFormatComboBox.SelectedItem = defaultFormatItem;
-                }
-
-                // Audio quality options
-                var defaultAudioQuality = _settings.DefaultAudioQuality;
-                var audioQualityIndex = AudioQualityComboBox.Items.Cast<ComboBoxItem>()
-                    .ToList()
-                    .FindIndex(x => x.Content.ToString() == defaultAudioQuality);
-                AudioQualityComboBox.SelectedIndex = audioQualityIndex != -1 ? audioQualityIndex : 2;
-                
-                Logger.Log($"Audio quality set to: {defaultAudioQuality}");
-
-                // Set default audio format
-                var defaultAudioFormat = _settings.DefaultAudioFormat;
-                var audioFormatIndex = AudioFormatComboBox.Items.Cast<ComboBoxItem>()
-                    .ToList()
-                    .FindIndex(x => x.Content.ToString() == defaultAudioFormat);
-                AudioFormatComboBox.SelectedIndex = audioFormatIndex != -1 ? audioFormatIndex : 0;
-                
-                Logger.Log($"Audio format set to: {defaultAudioFormat}");
 
                 // Set initial state for video mode
                 FormatPanel.Visibility = Visibility.Visible;
@@ -285,350 +269,105 @@ namespace YoutubeDownloader
                 return;
             }
 
-            if (!_isMP3Mode && !isMP4)
-            {
-                UpdateStatus("Please switch to audio mode first");
-                return;
-            }
-
-            if (_isMP3Mode && isMP4)
-            {
-                UpdateStatus("Please switch to video mode first");
-                return;
-            }
-
             try
             {
                 _isDownloading = true;
-                _downloadStartTime = DateTime.Now;  // Initialize download start time
-                _lastProgress = 0;  // Reset progress
+                _downloadStartTime = DateTime.Now;
                 UpdateStatus("Starting download...");
                 DownloadProgress.Value = 0;
+                SpeedText.Text = "";
+                TimeRemainingText.Text = "";
 
                 var url = UrlTextBox.Text.Trim();
                 if (string.IsNullOrEmpty(url))
                 {
-                    UpdateStatus("Please enter a valid YouTube URL");
+                    UpdateStatus("Please enter a URL");
                     return;
                 }
-
-                // Get video info first to get the title
-                var videoInfo = await _youtubeDl.RunVideoDataFetch(url);
-                if (!videoInfo.Success)
-                {
-                    UpdateStatus("Failed to get video information");
-                    return;
-                }
-
-                // Create a safe filename from the title
-                var safeTitle = string.Join("_", videoInfo.Data.Title.Split(Path.GetInvalidFileNameChars()));
 
                 string outputPath = !string.IsNullOrEmpty(LocationTextBox.Text)
                     ? LocationTextBox.Text
-                    : (isMP4 
-                        ? (!string.IsNullOrEmpty(_settings.DefaultVideoDownloadPath)
-                            ? _settings.DefaultVideoDownloadPath
-                            : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos))
-                        : (!string.IsNullOrEmpty(_settings.DefaultAudioDownloadPath)
-                            ? _settings.DefaultAudioDownloadPath
-                            : Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)));
+                    : (isMP4 ? _settings.DefaultVideoDownloadPath : _settings.DefaultAudioDownloadPath);
 
-                // Configure download options with specific output template
-                _youtubeDl.OutputFolder = outputPath;
-                _youtubeDl.OutputFileTemplate = $"{safeTitle}.%(ext)s";
+                if (string.IsNullOrEmpty(outputPath))
+                {
+                    outputPath = isMP4 
+                        ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
+                        : Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+                }
+
+                Logger.Log($"Starting {(isMP4 ? "video" : "audio")} download for URL: {url}");
+
+                // Configure basic download options
+                var options = new OptionSet
+                {
+                    Output = Path.Combine(outputPath, "%(title)s.%(ext)s"),
+                    RestrictFilenames = true,
+                    NoPlaylist = true,
+                    ForceOverwrites = true,
+                    ExtractAudio = !isMP4,
+                    AudioFormat = !isMP4 ? AudioConversionFormat.Mp3 : AudioConversionFormat.Best,
+                    AudioQuality = (byte)0,
+                    Format = isMP4 ? "best" : "bestaudio",
+                    NoCheckCertificates = true
+                };
+
+                // Add minimal required options
+                options.AddCustomOption("--ffmpeg-location", _youtubeDl.FFmpegPath);
+                options.AddCustomOption("--no-check-certificate", true);
+                options.AddCustomOption("--no-cache-dir", true);
+                options.AddCustomOption("--no-part", true);
 
                 var progress = new Progress<DownloadProgress>(p =>
                 {
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        if (p == null)
+                        if (p != null)
                         {
-                            Logger.Log("Progress update received but was null");
-                            return;
-                        }
-
-                        // Log progress details (only every 10%)
-                        if (Math.Floor(p.Progress * 10) > Math.Floor(_lastProgress * 10))
-                        {
-                            Logger.Log($"Progress update: {p.Progress * 100:F1}%", true);
-                        }
-
-                        // Update progress bar
-                        DownloadProgress.Value = p.Progress * 100;
-                        
-                        // Update speed
-                        if (p.DownloadSpeed != null)
-                        {
-                            string rawSpeed = p.DownloadSpeed.ToString() ?? "";
-                            if (rawSpeed.EndsWith("iB/s"))
-                            {
-                                // Parse values like "7.61MiB/s"
-                                string speedText = rawSpeed;
-                                if (rawSpeed.Contains("M"))
-                                {
-                                    double mbSpeed = double.Parse(rawSpeed.Replace("MiB/s", ""));
-                                    speedText = $"{mbSpeed:F2} MB/s";
-                                }
-                                else if (rawSpeed.Contains("K"))
-                                {
-                                    double kbSpeed = double.Parse(rawSpeed.Replace("KiB/s", ""));
-                                    speedText = $"{kbSpeed:F2} KB/s";
-                                }
-                                SpeedText.Text = speedText;
-                                Logger.Log($"Speed: {speedText}", true);
-                            }
-                        }
-
-                        // Update ETA
-                        if (p.Progress > _lastProgress)  // Only update if progress increased
-                        {
-                            var elapsedTime = DateTime.Now - _downloadStartTime;
-                            var remainingProgress = 1.0 - p.Progress;
+                            DownloadProgress.Value = p.Progress * 100;
+                            UpdateStatus($"Downloading: {(p.Progress * 100):F1}%");
+                            SpeedText.Text = p.DownloadSpeed?.ToString() ?? "";
                             
-                            if (p.Progress > 0)
-                            {
-                                var estimatedTotalTime = TimeSpan.FromSeconds(elapsedTime.TotalSeconds / p.Progress);
-                                var estimatedRemaining = TimeSpan.FromSeconds(estimatedTotalTime.TotalSeconds * remainingProgress);
-
-                                string etaText;
-                                if (estimatedRemaining.TotalHours >= 1)
-                                {
-                                    etaText = $"{(int)estimatedRemaining.TotalHours}h {estimatedRemaining.Minutes}m remaining";
-                                }
-                                else if (estimatedRemaining.TotalMinutes >= 1)
-                                {
-                                    etaText = $"{(int)estimatedRemaining.TotalMinutes}m {estimatedRemaining.Seconds}s remaining";
-                                }
-                                else
-                                {
-                                    etaText = $"{estimatedRemaining.Seconds}s remaining";
-                                }
-                                TimeRemainingText.Text = etaText;
-                                Logger.Log($"ETA: {etaText}", true);
-                            }
-                            
-                            _lastProgress = p.Progress;
+                            var elapsed = DateTime.Now - _downloadStartTime;
+                            TimeRemainingText.Text = $"{elapsed.Hours:D2}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
                         }
-
-                        // Remove or modify the full properties log to be less frequent
-                        if (Math.Floor(p.Progress * 10) > Math.Floor(_lastProgress * 10))
-                        {
-                            Logger.Log($"Download status:" +
-                                      $"\nProgress: {p.Progress * 100:F1}%" +
-                                      $"\nSpeed: {SpeedText.Text}" +
-                                      $"\nETA: {TimeRemainingText.Text}", true);
-                        }
-
-                        // Update status with percentage
-                        UpdateStatus($"Downloading: {(p.Progress * 100):F1}%");
                     });
                 });
 
-                if (!File.Exists(_youtubeDl.FFmpegPath))
+                // Run the download
+                var result = isMP4
+                    ? await _youtubeDl.RunVideoDownload(url, progress: progress, overrideOptions: options)
+                    : await _youtubeDl.RunAudioDownload(url, AudioConversionFormat.Mp3, progress: progress, overrideOptions: options);
+
+                if (result.Success)
                 {
-                    UpdateStatus("FFmpeg not found. Trying to download...");
-                    await EnsureDependenciesExist();
+                    UpdateStatus("Download completed!");
+                    Logger.Log($"Download successful: {result.Data}");
                     
-                    if (!File.Exists(_youtubeDl.FFmpegPath))
+                    if (!string.IsNullOrEmpty(result.Data))
                     {
-                        UpdateStatus("Failed to setup FFmpeg. Please try restarting the application.");
-                        return;
-                    }
-                }
-
-                var options = new OptionSet();
-
-                if (_settings.DownloadThumbnails)
-                {
-                    try
-                    {
-                        var thumbnailUrl = videoInfo.Data.Thumbnails?.OrderByDescending(t => t.Resolution)
-                                                            .FirstOrDefault()?.Url;
-                        if (!string.IsNullOrEmpty(thumbnailUrl))
+                        var historyItem = new DownloadHistoryItem
                         {
-                            UpdateStatus("Downloading thumbnail...");
-                            await DownloadThumbnail(thumbnailUrl, safeTitle, outputPath);
-                            UpdateStatus("Thumbnail downloaded");
-                        }
+                            Title = Path.GetFileNameWithoutExtension(result.Data),
+                            Url = url,
+                            FilePath = result.Data,
+                            IsMP4 = isMP4,
+                            DownloadDate = DateTime.Now
+                        };
+                        _downloadHistory.Insert(0, historyItem);
+                        SaveDownloadHistory();
                     }
-                    catch (Exception ex)
-                    {
-                        Logger.LogError(ex, "Thumbnail download");
-                        UpdateStatus("Failed to download thumbnail");
-                    }
-                }
-
-                if (_settings.DownloadSubtitles)
-                {
-                    options.WriteAutoSubs = true;
-                    options.SubLangs = "en";
-                    options.EmbedSubs = true;
-                    options.ConvertSubs = "srt";
-                }
-
-                string outputFormat = (OutputFormatComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "mp4";
-                
-                if (isMP4)
-                {
-                    string format = "bestvideo+bestaudio/best";
-                    if (QualityComboBox.SelectedItem?.ToString() != "Best")
-                    {
-                        string quality = QualityComboBox.SelectedItem?.ToString()?.Replace("p", "") ?? "1080";
-                        format = $"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]";
-                    }
-                    
-                    options.Format = format;
                 }
                 else
                 {
-                    // For audio downloads
-                    options.Format = "bestaudio[ext=m4a]/bestaudio/best"; // Prefer m4a source for best quality
-                    options.ExtractAudio = true;
-                    
-                    // Get selected audio format
-                    var selectedFormat = (AudioFormatComboBox.SelectedItem as ComboBoxItem)?.Content.ToString()?.ToLower() ?? "mp3";
-                    options.AudioFormat = selectedFormat switch
-                    {
-                        "wav" => AudioConversionFormat.Wav,
-                        "aac" => AudioConversionFormat.Aac,
-                        "m4a" => AudioConversionFormat.M4a,
-                        "flac" => AudioConversionFormat.Flac,
-                        _ => AudioConversionFormat.Mp3
-                    };
-                    
-                    // Get selected audio quality
-                    var selectedQuality = (AudioQualityComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
-                    var audioBitrate = selectedQuality?.Replace(" kbps", "") ?? "192";
-                    
-                    options.AudioQuality = (byte)0;  // Best quality for initial download
-                    options.AddCustomOption("--extract-audio", true);
-                    options.AddCustomOption("--audio-format", selectedFormat);
-                    
-                    // Apply quality settings based on format
-                    switch (selectedFormat)
-                    {
-                        case "wav":
-                        case "flac":
-                            // For lossless formats, don't set bitrate
-                            options.AddCustomOption("--postprocessor-args", "-ar 44100 -ac 2");
-                            break;
-                        default:
-                            // For lossy formats, set bitrate
-                            options.AddCustomOption("--postprocessor-args", $"-ar 44100 -ac 2 -b:a {audioBitrate}k");
-                            break;
-                    }
-                }
-
-                options.Output = Path.Combine(outputPath, $"{safeTitle}.%(ext)s");
-                options.RestrictFilenames = true;
-                options.NoPlaylist = true;
-                options.PreferFreeFormats = true;
-
-                // Download as MKV first if MOV is selected
-                var downloadFormat = outputFormat == "mov" ? DownloadMergeFormat.Mkv : 
-                                   outputFormat == "mp4" ? DownloadMergeFormat.Mp4 : 
-                                   DownloadMergeFormat.Mkv;
-
-                var result = await _youtubeDl.RunVideoDownload(
-                    url,
-                    options.Format,
-                    downloadFormat,
-                    progress: progress,
-                    ct: CancellationToken.None,
-                    overrideOptions: options
-                );
-
-                // If MOV format is selected and download was successful, convert to MOV
-                if (outputFormat == "mov" && result.Success && File.Exists(result.Data))
-                {
-                    var movPath = Path.ChangeExtension(result.Data, ".mov");
-                    UpdateStatus("Converting to MOV format...");
-                    
-                    try
-                    {
-                        // Set FFmpeg binary path
-                        GlobalFFOptions.Configure(new FFOptions 
-                        { 
-                            BinaryFolder = _dependenciesPath,
-                            TemporaryFilesFolder = Path.Combine(_dependenciesPath, "temp")
-                        });
-
-                        Logger.Log($"Starting MOV conversion from: {result.Data}");
-                        Logger.Log($"Converting to: {movPath}");
-
-                        // Use FFMpegCore's static methods with transcoding
-                        await FFMpegArguments
-                            .FromFileInput(result.Data)
-                            .OutputToFile(movPath, true, options => options
-                                .WithVideoCodec("h264")        // Convert to H.264
-                                .WithAudioCodec("aac")         // Convert to AAC
-                                .WithConstantRateFactor(23)    // Maintain good quality
-                                .WithFastStart())
-                            .ProcessAsynchronously();
-
-                        // Verify the conversion
-                        if (File.Exists(movPath) && new FileInfo(movPath).Length > 0)
-                        {
-                            File.Delete(result.Data);
-                            var newResult = new RunResult<string>(true, new[] { movPath }, movPath);
-                            result = newResult;
-                            UpdateStatus("Conversion complete");
-                            Logger.Log("MOV conversion successful");
-                        }
-                        else
-                        {
-                            throw new Exception("Converted file is empty or does not exist");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogError(ex, "MOV Conversion");
-                        UpdateStatus("Failed to convert to MOV format");
-                        
-                        // Clean up empty MOV file if it exists
-                        if (File.Exists(movPath))
-                        {
-                            try { File.Delete(movPath); } catch { }
-                        }
-                    }
-                }
-
-                if (result.Success && File.Exists(result.Data))
-                {
-                    try
-                    {
-                        // Set file timestamps
-                        File.SetCreationTime(result.Data, DateTime.Now);
-                        File.SetLastWriteTime(result.Data, DateTime.Now);
-                        File.SetLastAccessTime(result.Data, DateTime.Now);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogError(ex, "Failed to update timestamps");
-                    }
-                }
-
-                HandleResult(result, videoInfo.Data.Title, isMP4);
-
-                if (videoInfo.Success)
-                {
-                    // Show video title
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        VideoTitleText.Text = videoInfo.Data.Title;
-                        VideoTitleText.Visibility = Visibility.Visible;
-                    });
-
-                    // Load thumbnail if available
-                    if (!string.IsNullOrEmpty(videoInfo.Data.Thumbnails?.LastOrDefault()?.Url))
-                    {
-                        await LoadThumbnail(videoInfo.Data.Thumbnails.Last().Url);
-                    }
+                    var error = result.ErrorOutput?.FirstOrDefault() ?? "Unknown error";
+                    Logger.LogError(new Exception(error), $"{(isMP4 ? "Video" : "Audio")} download failed");
+                    throw new Exception($"Download failed: {error}");
                 }
             }
             catch (Exception ex)
             {
-                ClearPreview();
+                Logger.LogError(ex, "DownloadVideo");
                 UpdateStatus($"Error: {ex.Message}");
             }
             finally
@@ -637,7 +376,7 @@ namespace YoutubeDownloader
             }
         }
 
-        private void HandleResult(YoutubeDLSharp.RunResult<string> result, string title = null, bool isMP4 = false)
+        private void HandleResult(YoutubeDLSharp.RunResult<string> result, string? title = null, bool isMP4 = false)
         {
             if (result.Success && result.Data != null)
             {
@@ -646,7 +385,16 @@ namespace YoutubeDownloader
                     UpdateStatus($"Download completed! File saved to: {result.Data}");
                     if (title != null)  // Only add to history if we have a title
                     {
-                        AddToHistory(title, result.Data, isMP4);
+                        var historyItem = new DownloadHistoryItem
+                        {
+                            Title = title,
+                            FilePath = result.Data,
+                            IsMP4 = isMP4,
+                            DownloadDate = DateTime.Now,
+                            Url = UrlTextBox.Text.Trim()
+                        };
+                        _downloadHistory.Insert(0, historyItem);
+                        SaveDownloadHistory();
                     }
                 }
                 else
@@ -836,20 +584,6 @@ namespace YoutubeDownloader
             {
                 System.Diagnostics.Debug.WriteLine($"Error saving history: {ex.Message}");
             }
-        }
-
-        private void AddToHistory(string title, string filePath, bool isMP4)
-        {
-            var item = new DownloadHistoryItem
-            {
-                Title = title,
-                FilePath = filePath,
-                Type = isMP4 ? "MP4" : "MP3",
-                DateTime = DateTime.Now
-            };
-            
-            _downloadHistory.Insert(0, item);
-            SaveDownloadHistory();
         }
 
         private async Task LoadThumbnail(string url)
@@ -1153,13 +887,6 @@ $Shortcut.Save()";
         {
             try
             {
-                // Initialize quality options
-                DefaultQualityComboBox.Items.Add("Best");
-                DefaultQualityComboBox.Items.Add("1080p");
-                DefaultQualityComboBox.Items.Add("720p");
-                DefaultQualityComboBox.Items.Add("480p");
-                DefaultQualityComboBox.Items.Add("360p");
-
                 // Initialize audio format options
                 DefaultAudioFormatComboBox.Items.Clear();
                 DefaultAudioFormatComboBox.Items.Add(new ComboBoxItem { Content = "MP3" });
@@ -1178,8 +905,7 @@ $Shortcut.Save()";
                 // Set UI elements from settings
                 DefaultVideoLocationBox.Text = _settings.DefaultVideoDownloadPath;
                 DefaultAudioLocationBox.Text = _settings.DefaultAudioDownloadPath;
-                DefaultLocationBox.Text = _settings.DefaultDownloadPath;  // Keep for backward compatibility
-                DefaultQualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
+                DefaultLocationBox.Text = _settings.DefaultDownloadPath;
                 RememberPositionCheckBox.IsChecked = _settings.RememberWindowPosition;
                 AutoUpdateDepsCheckBox.IsChecked = _settings.AutoUpdateDependencies;
                 DownloadThumbnailsCheckBox.IsChecked = _settings.DownloadThumbnails;
@@ -1192,10 +918,7 @@ $Shortcut.Save()";
 
                 var audioQualityItem = DefaultAudioQualityComboBox.Items.Cast<ComboBoxItem>()
                     .FirstOrDefault(x => x.Content.ToString() == _settings.DefaultAudioQuality);
-                DefaultAudioQualityComboBox.SelectedItem = audioQualityItem ?? DefaultAudioQualityComboBox.Items[2]; // Default to 192 kbps
-
-                // Sync download quality with default quality
-                QualityComboBox.SelectedItem = _settings.DefaultVideoQuality;
+                DefaultAudioQualityComboBox.SelectedItem = audioQualityItem ?? DefaultAudioQualityComboBox.Items[2];
             }
             catch (Exception ex)
             {
@@ -1455,14 +1178,6 @@ $Shortcut.Save()";
                 }
             });
         }
-    }
-
-    public class DownloadHistoryItem
-    {
-        public string Title { get; set; } = string.Empty;
-        public string FilePath { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty;
-        public DateTime DateTime { get; set; }
     }
 
     public static class Extensions

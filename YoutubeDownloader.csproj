@@ -32,6 +32,7 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.2428" />
     <PackageReference Include="YoutubeDLSharp" Version="1.1.0" />
     <PackageReference Include="FFMpegCore" Version="5.1.0" />
+    <PackageReference Include="VideoLibrary" Version="3.2.3" />
   </ItemGroup>
 
   <ItemGroup>
